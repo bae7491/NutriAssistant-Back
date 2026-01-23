@@ -1,12 +1,14 @@
 package com.nutriassistant.nutriassistant_back.controller;
 
 import com.nutriassistant.nutriassistant_back.DTO.MealMenuResponse;
+import com.nutriassistant.nutriassistant_back.DTO.MealPlanIdResponse;
 import com.nutriassistant.nutriassistant_back.DTO.MealPlanResponse;
 import com.nutriassistant.nutriassistant_back.entity.MealPlan;
 import com.nutriassistant.nutriassistant_back.entity.MealPlanMenu;
 import com.nutriassistant.nutriassistant_back.service.MealPlanService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Collections;
@@ -70,5 +72,15 @@ public class MealPlanController {
         } catch (Exception e) {
             return Collections.emptyList();
         }
+    }
+
+    // POST /mealplan/generate?year=2026&month=3
+    // (also available as /api/mealplans/generate?year=...&month=...)
+    @PostMapping("/generate")
+    public ResponseEntity<?> generate(@RequestParam int year, @RequestParam int month) {
+        // This service method should call FastAPI to generate the monthly plan and persist it,
+        // then return the saved MealPlan (or its id).
+        MealPlan saved = mealPlanService.generateAndSave(year, month);
+        return ResponseEntity.ok(new MealPlanIdResponse(saved.getId()));
     }
 }
