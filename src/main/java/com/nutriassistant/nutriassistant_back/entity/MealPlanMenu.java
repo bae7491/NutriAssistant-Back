@@ -18,12 +18,12 @@ import java.time.LocalDate;
 )
 @Getter
 @Setter
-@NoArgsConstructor(access = AccessLevel.PUBLIC) // ✅ 서비스에서 new MealPlanMenu() 가능
+@NoArgsConstructor(access = AccessLevel.PUBLIC)
 public class MealPlanMenu {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "menu_id")
+    @Column(name = "id")
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
