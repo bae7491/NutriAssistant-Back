@@ -49,7 +49,7 @@ public class MealPlanService {
     public MealPlan generateAndSave(int year, int month) {
         // FastAPI 엔드포인트: POST /v1/menus/month:generate
         // FastAPI는 query param이 아니라 JSON body로 year/month를 받음
-        String url = String.format("%s/v1/menus/month:generate", fastApiBaseUrl);
+        String url = String.format("%s/month/generate", fastApiBaseUrl);
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
