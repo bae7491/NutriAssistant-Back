@@ -15,3 +15,7 @@ spring:
   sql:
     init:
       mode: never
+
+fastapi:
+  base-url: http://localhost:8001
+  internal-token: ""   # FastAPI INTERNAL_TOKEN 쓰면 여기에 넣기
