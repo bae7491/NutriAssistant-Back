@@ -1,6 +1,7 @@
 package com.nutriassistant.nutriassistant_back.DTO;
 
 import java.time.LocalDate;
+import java.util.List;
 
 public record MealMenuResponse(
         Long menuId,
@@ -12,35 +13,12 @@ public record MealMenuResponse(
         String main2,
         String side,
         String kimchi,
+        String dessert,
+        List<String> rawMenus,
         Integer kcal,
-        Integer prot
-) {
-
-    public MealMenuResponse(
-            Long id,
-            LocalDate menuDate,
-            String name,
-            String rice,
-            String soup,
-            String main1,
-            String main2,
-            String side,
-            String kimchi,
-            Double kcal,
-            Double prot
-    ) {
-        this(
-                id,
-                menuDate,
-                name,
-                rice,
-                soup,
-                main1,
-                main2,
-                side,
-                kimchi,
-                kcal != null ? kcal.intValue() : null,
-                prot != null ? prot.intValue() : null
-        );
-    }
-}
+        Integer carb,
+        Integer prot,
+        Integer fat,
+        Integer cost,
+        String rawMenusJson
+) { }

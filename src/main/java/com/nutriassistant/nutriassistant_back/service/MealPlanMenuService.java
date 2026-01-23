@@ -12,16 +12,32 @@ import com.nutriassistant.nutriassistant_back.repository.MealPlanMenuRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
 
 @Service
 public class MealPlanMenuService {
 
     private final MealPlanMenuRepository mealPlanMenuRepository;
     private final MealPlanRepository mealPlanRepository;
+    private final ObjectMapper objectMapper;
 
-    public MealPlanMenuService(MealPlanMenuRepository mealPlanMenuRepository, MealPlanRepository mealPlanRepository) {
+    public MealPlanMenuService(MealPlanMenuRepository mealPlanMenuRepository,
+                               MealPlanRepository mealPlanRepository,
+                               ObjectMapper objectMapper) {
         this.mealPlanMenuRepository = mealPlanMenuRepository;
         this.mealPlanRepository = mealPlanRepository;
+        this.objectMapper = objectMapper;
+    }
+
+    private List<String> parseRawMenus(String rawJson) {
+        if (rawJson == null || rawJson.isBlank()) return List.of();
+        try {
+            return objectMapper.readValue(rawJson, new TypeReference<List<String>>() {});
+        } catch (Exception e) {
+            return List.of();
+        }
     }
 
     /**
@@ -62,8 +78,14 @@ public class MealPlanMenuService {
                 menu.getMain2(),
                 menu.getSide(),
                 menu.getKimchi(),
+                menu.getDessert(),
+                parseRawMenus(menu.getRawMenusJson()),
                 menu.getKcal(),
-                menu.getProt()
+                menu.getCarb(),
+                menu.getProt(),
+                menu.getFat(),
+                menu.getCost(),
+                menu.getRawMenusJson()
         );
     }
 
