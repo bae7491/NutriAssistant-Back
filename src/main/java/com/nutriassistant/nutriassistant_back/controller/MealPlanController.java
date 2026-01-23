@@ -1,45 +1,35 @@
 package com.nutriassistant.nutriassistant_back.controller;
 
-import com.nutriassistant.nutriassistant_back.DTO.MealPlanCreateRequest;
+import com.nutriassistant.nutriassistant_back.DTO.MealMenuResponse;
+import com.nutriassistant.nutriassistant_back.DTO.MealPlanResponse;
 import com.nutriassistant.nutriassistant_back.entity.MealPlan;
 import com.nutriassistant.nutriassistant_back.entity.MealPlanMenu;
-import java.util.List;
 import com.nutriassistant.nutriassistant_back.service.MealPlanService;
-import org.springframework.http.ResponseEntity;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collections;
+import java.util.List;
+
 @RestController
-@RequestMapping({"/api/mealplans", "/mealplan"})
+@RequestMapping("/mealplan")
 public class MealPlanController {
 
     private final MealPlanService mealPlanService;
+    private final ObjectMapper objectMapper;
 
-    public MealPlanController(MealPlanService mealPlanService) {
+    public MealPlanController(MealPlanService mealPlanService, ObjectMapper objectMapper) {
         this.mealPlanService = mealPlanService;
-    }
-
-    @PostMapping
-    public ResponseEntity<?> create(@RequestBody MealPlanCreateRequest request) {
-        MealPlan saved = mealPlanService.createOrReplace(request);
-        return ResponseEntity.ok(new MealPlanIdResponse(saved.getId()));
-    }
-
-    // POST /mealplan/generate?year=2026&month=3
-    // (also available as /api/mealplans/generate?year=...&month=...)
-    @PostMapping("/generate")
-    public ResponseEntity<?> generate(@RequestParam int year, @RequestParam int month) {
-        // This service method should call FastAPI to generate the monthly plan and persist it,
-        // then return the saved MealPlan (or its id).
-        MealPlan saved = mealPlanService.generateAndSave(year, month);
-        return ResponseEntity.ok(new MealPlanIdResponse(saved.getId()));
+        this.objectMapper = objectMapper;
     }
 
     @GetMapping("/{id}")
-    public MealPlanResponse getMealPlan(@PathVariable Long id) {
-        MealPlan plan = mealPlanService.getById(id);
+    public MealPlanResponse getOne(@PathVariable Long id) {
+        MealPlan plan = mealPlanService.getById(id); // ✅ findByIdWithMenus 사용 중
 
-        List<MealPlanMenuResponse> menus = plan.getMenus().stream()
-                .map(this::toMenuResponse)
+        List<MealMenuResponse> menus = plan.getMenus().stream()
+                .map(this::toMealMenuResponse)
                 .toList();
 
         return new MealPlanResponse(
@@ -51,43 +41,34 @@ public class MealPlanController {
         );
     }
 
-    private MealPlanMenuResponse toMenuResponse(MealPlanMenu m) {
-        return new MealPlanMenuResponse(
-                m.getId(),
-                m.getMenuDate(),
-                m.getMealType(),
-                m.getRice(),
-                m.getSoup(),
-                m.getMain1(),
-                m.getMain2(),
-                m.getSide(),
-                m.getKimchi(),
-                m.getKcal(),
-                m.getProt()
+    private MealMenuResponse toMealMenuResponse(MealPlanMenu menu) {
+        return new MealMenuResponse(
+                menu.getId(),
+                menu.getMenuDate(),
+                menu.getMealType().name(),
+                menu.getRice(),
+                menu.getSoup(),
+                menu.getMain1(),
+                menu.getMain2(),
+                menu.getSide(),
+                menu.getKimchi(),
+                menu.getDessert(),
+                parseRawMenus(menu.getRawMenusJson()),
+                menu.getKcal(),
+                menu.getCarb(),
+                menu.getProt(),
+                menu.getFat(),
+                menu.getCost(),
+                menu.getRawMenusJson()
         );
     }
 
-    public record MealPlanIdResponse(Long mealPlanId) {}
-
-    public record MealPlanMenuResponse(
-            Long menuId,
-            java.time.LocalDate menuDate,
-            com.nutriassistant.nutriassistant_back.entity.MealType mealType,
-            String rice,
-            String soup,
-            String main1,
-            String main2,
-            String side,
-            String kimchi,
-            Integer kcal,
-            Integer prot
-    ) {}
-
-    public record MealPlanResponse(
-            Long mealPlanId,
-            int year,
-            int month,
-            java.time.LocalDateTime generatedAt,
-            List<MealPlanMenuResponse> menus
-    ) {}
+    private List<String> parseRawMenus(String rawMenusJson) {
+        try {
+            if (rawMenusJson == null || rawMenusJson.isBlank()) return Collections.emptyList();
+            return objectMapper.readValue(rawMenusJson, new TypeReference<List<String>>() {});
+        } catch (Exception e) {
+            return Collections.emptyList();
+        }
+    }
 }
