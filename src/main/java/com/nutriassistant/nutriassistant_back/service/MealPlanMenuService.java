@@ -14,6 +14,8 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -61,7 +63,7 @@ public class MealPlanMenuService {
      * date + type 로 해당 날짜/타입의 최신(가장 최근에 생성된) 메뉴 1건을 조회
      */
     public MealMenuResponse getOne(LocalDate date, MealType type) {
-        MealPlanMenu menu = mealPlanMenuRepository
+        MealPlanMenu menu = (MealPlanMenu) mealPlanMenuRepository
                 .findFirstByMenuDateAndMealTypeOrderByMenuDateDescIdDesc(date, type)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "menu not found: date=" + date + ", type=" + type
@@ -80,10 +82,10 @@ public class MealPlanMenuService {
                 menu.getKimchi(),
                 menu.getDessert(),
                 parseRawMenus(menu.getRawMenusJson()),
-                menu.getKcal(),
-                menu.getCarb(),
-                menu.getProt(),
-                menu.getFat(),
+                (int) Math.round(menu.getKcal() != null ? menu.getKcal() : 0),
+                (int) Math.round(menu.getCarb() != null ? menu.getCarb() : 0),
+                (int) Math.round(menu.getProt() != null ? menu.getProt() : 0),
+                (int) Math.round(menu.getFat() != null ? menu.getFat() : 0),
                 menu.getCost(),
                 menu.getRawMenusJson()
         );
@@ -102,7 +104,29 @@ public class MealPlanMenuService {
 
         mealPlanMenuRepository.deleteByMealPlan_Id(mealPlanId);
 
-        for (JsonNode m : list) {
+        // 정렬: 날짜 오름차순 → 타입 오름차순
+        List<JsonNode> sortedList = new ArrayList<>();
+        list.forEach(sortedList::add);
+
+        sortedList.sort((a, b) -> {
+            String dateA = a.path("Date").asText("");
+            String dateB = b.path("Date").asText("");
+            int dateCompare = dateA.compareTo(dateB);
+
+            if (dateCompare != 0) {
+                return dateCompare;
+            }
+
+            String typeA = a.path("Type").asText("");
+            String typeB = b.path("Type").asText("");
+
+            if (typeA.equals("중식") && typeB.equals("석식")) return -1;
+            if (typeA.equals("석식") && typeB.equals("중식")) return 1;
+
+            return 0;
+        });
+
+        for (JsonNode m : sortedList) {
             String dateStr = m.hasNonNull("Date") ? m.get("Date").asText() : null;
             String typeStr = m.hasNonNull("Type") ? m.get("Type").asText() : null;
             if (dateStr == null || typeStr == null) continue;
@@ -124,13 +148,12 @@ public class MealPlanMenuService {
             menu.setKimchi(m.path("Kimchi").isNull() ? null : m.path("Kimchi").asText(null));
             menu.setDessert(m.path("Dessert").isNull() ? null : m.path("Dessert").asText(null));
 
-            if (m.hasNonNull("Kcal")) menu.setKcal((int) Math.round(m.get("Kcal").asDouble()));
-            if (m.hasNonNull("Carb")) menu.setCarb((int) Math.round(m.get("Carb").asDouble()));
-            if (m.hasNonNull("Prot")) menu.setProt((int) Math.round(m.get("Prot").asDouble()));
-            if (m.hasNonNull("Fat")) menu.setFat((int) Math.round(m.get("Fat").asDouble()));
+            if (m.hasNonNull("Kcal")) menu.setKcal((double) Math.round(m.get("Kcal").asDouble()));
+            if (m.hasNonNull("Carb")) menu.setCarb((double) Math.round(m.get("Carb").asDouble()));
+            if (m.hasNonNull("Prot")) menu.setProt((double) Math.round(m.get("Prot").asDouble()));
+            if (m.hasNonNull("Fat")) menu.setFat((double) Math.round(m.get("Fat").asDouble()));
             if (m.hasNonNull("Cost")) menu.setCost((int) Math.round(m.get("Cost").asDouble()));
 
-            // RawMenus -> JSON 저장 (있으면)
             if (m.has("RawMenus") && m.get("RawMenus").isArray()) {
                 menu.setRawMenusJson(m.get("RawMenus").toString());
             }

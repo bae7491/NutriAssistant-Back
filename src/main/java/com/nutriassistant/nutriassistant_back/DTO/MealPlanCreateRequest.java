@@ -9,9 +9,9 @@ public record MealPlanCreateRequest(
         int month,
         LocalDateTime generatedAt,
 
-        // ✅ FastAPI는 "meals"로 보내지만, 내부적으로 menus로 사용
+        // FastAPI는 "meals"로 보내지만, 내부적으로 menus로 사용
         @JsonProperty("meals")  // JSON에서는 "meals"로 받음
-        List<MealMenu> menus    // 코드에서는 menus로 사용
+        com.fasterxml.jackson.databind.JsonNode menus    // 코드에서는 menus로 사용
 ) {
     public record MealMenu(
             @JsonProperty("Date") String date,

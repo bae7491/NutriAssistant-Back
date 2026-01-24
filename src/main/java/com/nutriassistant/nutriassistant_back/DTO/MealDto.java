@@ -9,8 +9,8 @@ public record MealDto(
         String main2,
         String side,
         String kimchi,
-        Integer kcal,
-        Integer prot
+        Double kcal,
+        Double prot
 ) {
     public static MealDto from(MealPlanMenu m) {
         if (m == null) return null;
