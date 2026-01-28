@@ -3,7 +3,7 @@ package com.nutriassistant.nutriassistant_back.MealPlan.service;
 import com.nutriassistant.nutriassistant_back.MealPlan.DTO.MealPlanCreateRequest;
 import com.nutriassistant.nutriassistant_back.MealPlan.DTO.MealPlanGenerateRequest;
 import com.nutriassistant.nutriassistant_back.MealPlan.entity.*;
-import com.nutriassistant.nutriassistant_back.entity.*;
+import com.nutriassistant.nutriassistant_back.MealPlan.entity.*;
 import com.nutriassistant.nutriassistant_back.MealPlan.repository.FoodInfoRepository;
 import com.nutriassistant.nutriassistant_back.MealPlan.repository.MealPlanMenuRepository;
 import com.nutriassistant.nutriassistant_back.MealPlan.repository.MealPlanRepository;
