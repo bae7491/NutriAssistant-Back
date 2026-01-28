@@ -1,6 +1,6 @@
 package com.nutriassistant.nutriassistant_back.MealPlan.controller;
 
-import com.nutriassistant.nutriassistant_back.DTO.*;
+import com.nutriassistant.nutriassistant_back.MealPlan.DTO.*;
 import com.nutriassistant.nutriassistant_back.MealPlan.DTO.MenuCostDatabaseResponse;
 import com.nutriassistant.nutriassistant_back.MealPlan.DTO.MenuCostResponse;
 import com.nutriassistant.nutriassistant_back.MealPlan.DTO.MenuCostUploadRequest;

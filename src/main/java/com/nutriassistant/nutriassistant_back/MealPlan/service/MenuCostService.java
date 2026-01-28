@@ -2,7 +2,7 @@ package com.nutriassistant.nutriassistant_back.MealPlan.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nutriassistant.nutriassistant_back.DTO.*;
+import com.nutriassistant.nutriassistant_back.MealPlan.DTO.*;
 import com.nutriassistant.nutriassistant_back.MealPlan.DTO.MenuCostDatabaseResponse;
 import com.nutriassistant.nutriassistant_back.MealPlan.DTO.MenuCostResponse;
 import com.nutriassistant.nutriassistant_back.MealPlan.DTO.MenuCostUploadRequest;
