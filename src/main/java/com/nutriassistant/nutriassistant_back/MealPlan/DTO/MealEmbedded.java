@@ -2,10 +2,13 @@ package com.nutriassistant.nutriassistant_back.MealPlan.DTO;
 
 
 import jakarta.persistence.Embeddable;
+import lombok.Getter;
 
+@Getter
 @Embeddable
 public class MealEmbedded {
 
+    // 기존 getter
     private String rice;
     private String soup;
     private String main1;
@@ -28,16 +31,6 @@ public class MealEmbedded {
         this.kcal = kcal;
         this.prot = prot;
     }
-
-    // 기존 getter
-    public String getRice() { return rice; }
-    public String getSoup() { return soup; }
-    public String getMain1() { return main1; }
-    public String getMain2() { return main2; }
-    public String getSide() { return side; }
-    public String getKimchi() { return kimchi; }
-    public Integer getKcal() { return kcal; }
-    public Integer getProt() { return prot; }
 
     // ✅ record 스타일 accessor 추가 (서비스의 m.rice()를 살림)
     public String rice() { return rice; }

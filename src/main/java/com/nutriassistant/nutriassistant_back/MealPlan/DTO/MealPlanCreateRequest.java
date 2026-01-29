@@ -1,33 +1,30 @@
 package com.nutriassistant.nutriassistant_back.MealPlan.DTO;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.time.LocalDateTime;
-import java.util.List;
 
+/**
+ * 식단표 생성/저장 요청 DTO
+ * FastAPI 응답 데이터를 DB에 저장할 때 사용
+ */
 public record MealPlanCreateRequest(
-        int year,
-        int month,
+        @JsonProperty("school_id")
+        Long schoolId,
+
+        @JsonProperty("year")
+        Integer year,
+
+        @JsonProperty("month")
+        Integer month,
+
+        @JsonProperty("generated_at")
         LocalDateTime generatedAt,
 
-        // FastAPI는 "meals"로 보내지만, 내부적으로 menus로 사용
-        @JsonProperty("meals")  // JSON에서는 "meals"로 받음
-        com.fasterxml.jackson.databind.JsonNode menus    // 코드에서는 menus로 사용
-) {
-    public record MealMenu(
-            @JsonProperty("Date") String date,
-            @JsonProperty("Type") String type,
-            @JsonProperty("Rice") String rice,
-            @JsonProperty("Soup") String soup,
-            @JsonProperty("Main1") String main1,
-            @JsonProperty("Main2") String main2,
-            @JsonProperty("Side") String side,
-            @JsonProperty("Kimchi") String kimchi,
-            @JsonProperty("Dessert") String dessert,
-            @JsonProperty("RawMenus") List<String> rawMenus,
-            @JsonProperty("Kcal") Integer kcal,
-            @JsonProperty("Carb") Integer carb,
-            @JsonProperty("Prot") Integer prot,
-            @JsonProperty("Fat") Integer fat,
-            @JsonProperty("Cost") Integer cost
-    ) {}
-}
+        /**
+         * FastAPI는 "meals" 배열로 반환
+         * JsonNode로 받아서 MealPlanMenuService에서 파싱
+         */
+        @JsonProperty("meals")
+        JsonNode menus
+) {}
