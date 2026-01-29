@@ -20,7 +20,7 @@ public class FoodInfo {
     private Long id;
 
     @Column(name = "food_code", unique = true)
-    private Long foodCode;
+    private String foodCode;
 
     @Column(name = "food_name")
     private String foodName;

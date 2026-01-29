@@ -23,6 +23,6 @@ public interface FoodInfoRepository extends JpaRepository<FoodInfo, Long> {
     // 효과: 사용자가 "된장 국"이라고 입력해도 DB의 "된장국"을 찾을 수 있습니다.
     // [수정] nativeQuery = true 옵션을 추가하고, 실제 테이블명(food_info)과 컬럼명(food_name)을 사용
     // 이걸 복사해서 Repository에 덮어씌우세요
-    @Query(value = "SELECT * FROM food_info WHERE REPLACE(food_name, ' ', '') = REPLACE(:foodName, ' ', '')", nativeQuery = true)
+    @Query(value = "SELECT * FROM food_info WHERE REPLACE(food_name, ' ', '') = REPLACE(:foodName, ' ', '') LIMIT 1", nativeQuery = true)
     Optional<FoodInfo> findByFoodNameIgnoreSpace(@Param("foodName") String foodName);
 }

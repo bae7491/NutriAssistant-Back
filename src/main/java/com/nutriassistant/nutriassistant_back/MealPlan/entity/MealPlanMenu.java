@@ -1,136 +1,123 @@
 package com.nutriassistant.nutriassistant_back.MealPlan.entity;
 
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.Getter;
+import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.time.LocalDateTime;
 
+@Getter
 @Entity
 @Table(
         name = "meal_plan_menu",
-        uniqueConstraints = @UniqueConstraint(
-                name = "uk_meal_plan_menu_plan_date_type",
-                columnNames = {"meal_plan_id", "menu_date", "meal_type"}
-        )
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uk_meal_plan_menu_plan_date_type",
+                        columnNames = {"meal_plan_id", "menu_date", "meal_type"}
+                )
+        },
+        indexes = {
+                @Index(name = "idx_meal_plan_menu_plan_date", columnList = "meal_plan_id,menu_date"),
+                @Index(name = "idx_meal_plan_menu_date_type", columnList = "menu_date,meal_type")
+        }
 )
-@Getter
-@Setter
-@NoArgsConstructor(access = AccessLevel.PUBLIC)
-@AllArgsConstructor
-@Builder
 public class MealPlanMenu {
 
+    // ====== getters/setters ======
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id")
-    private Long id;
+    private Long id; // 일간 식단표 Id
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    // ====== setter for relation ======
+    // many daily rows belong to one monthly plan
+    @Setter
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "meal_plan_id", nullable = false)
-    private MealPlan mealPlan;
+    private MealPlan mealPlan; // 식단표 Id
 
+    @Setter
     @Column(name = "menu_date", nullable = false)
-    private LocalDate menuDate;
+    private LocalDate menuDate; // 메뉴 날짜
 
+    @Setter
     @Enumerated(EnumType.STRING)
-    @Column(name = "meal_type", nullable = false)
-    private MealType mealType;
+    @Column(name = "meal_type", nullable = false, length = 16)
+    private MealType mealType; // 중/석식 구분
 
-    // --- 메뉴 구성 필드 ---
-    private String rice;
-    private String soup;
-    private String main1;
-    private String main2;
-    private String side;
-    private String kimchi;
-    private String dessert;
+    // display strings (may include allergens like "(1,2,5)")
+    @Setter
+    @Column(name = "rice_display", length = 255)
+    private String riceDisplay; // 밥
 
-    // [수정] 영양소 계산을 위해 Integer -> Double로 변경
-    // (FoodDictionary의 값이 double이므로 합산 시 소수점이 발생할 수 있음)
-    private Double kcal;
-    private Double carb;
-    private Double prot;
-    private Double fat;
+    @Setter
+    @Column(name = "soup_display", length = 255)
+    private String soupDisplay; // 국
 
-    private Integer cost; // 비용은 보통 정수(원 단위)로 관리
+    @Setter
+    @Column(name = "main1_display", length = 255)
+    private String main1Display; // 주찬1
 
-    @Column(name = "raw_menus_json", columnDefinition = "tinytext")
-    private String rawMenusJson;
+    @Setter
+    @Column(name = "main2_display", length = 255)
+    private String main2Display; // 주찬2
 
-    @Column(name = "ai_comment", length = 1000)
-    private String aiComment;
+    @Setter
+    @Column(name = "side_display", length = 255)
+    private String sideDisplay; // 부찬
 
-    // =================================================================
-    // 편의 메서드
-    // =================================================================
+    @Setter
+    @Column(name = "kimchi_display", length = 255)
+    private String kimchiDisplay; // 김치
 
-    /**
-     * [수정] AI 자동 대체 또는 수동 수정 시 메뉴 업데이트
-     * 리스트 순서대로 엔티티의 필드(rice, soup...)에 매핑합니다.
-     * @param newMenus 알레르기 정보가 포함된 메뉴 리스트
-     */
-    public void updateMenus(List<String> newMenus) {
-        // [수정] null이 들어오면 모든 필드를 초기화(null)하도록 로직 보완
-        if (newMenus == null || newMenus.isEmpty()) {
-            this.rice = null;
-            this.soup = null;
-            this.main1 = null;
-            this.main2 = null;
-            this.side = null;
-            this.kimchi = null;
-            this.dessert = null;
-            return;
-        }
+    @Setter
+    @Column(name = "dessert_display", length = 255)
+    private String dessertDisplay; // 후식
 
-        // 리스트 인덱스에 맞춰 필드 할당 (데이터가 없으면 null 들어감)
-        this.rice    = getSafe(newMenus, 0);
-        this.soup    = getSafe(newMenus, 1);
-        this.main1   = getSafe(newMenus, 2);
-        this.main2   = getSafe(newMenus, 3);
-        this.side    = getSafe(newMenus, 4);
-        this.kimchi  = getSafe(newMenus, 5);
-        this.dessert = getSafe(newMenus, 6);
+    @Setter
+    @Column(precision = 10, scale = 2)
+    private BigDecimal kcal; // 에너지 (칼로리)
+
+    @Setter
+    @Column(precision = 10, scale = 2)
+    private BigDecimal carb; // 탄수화물
+
+    @Setter
+    @Column(precision = 10, scale = 2)
+    private BigDecimal prot; // 단백질
+
+    @Setter
+    @Column(precision = 10, scale = 2)
+    private BigDecimal fat; // 지방
+
+    @Setter
+    @Column
+    private Integer cost; // 단가
+
+    @Setter
+    @Column(name = "ai_comment", length = 255)
+    private String aiComment; // 수정 사유
+
+    @Setter
+    @Column(name = "raw_menus_json", columnDefinition = "TEXT")
+    private String rawMenusJson; // 원본 메뉴 JSON
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
+
+    public MealPlanMenu() {}
+
+    public MealPlanMenu(LocalDate menuDate, MealType mealType) {
+        this.menuDate = menuDate;
+        this.mealType = mealType;
     }
 
-    /**
-     * [추가] rawMenus 업데이트 메서드
-     * Service에서 JSON 변환을 수행하지 않고 엔티티에 위임할 때 사용합니다.
-     * @param rawMenus 비용 계산용 순수 메뉴명 리스트
-     * @param objectMapper JSON 변환용 ObjectMapper
-     */
-    public void updateRawMenus(List<String> rawMenus, com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
-        if (rawMenus == null || rawMenus.isEmpty()) {
-            // [수정] 빈 리스트가 오면 null 대신 빈 배열 "[]"로 저장하는 것이 안전할 수 있음
-            // (프론트엔드 처리에 따라 다르지만, 보통 빈 배열 문자열이 파싱 오류가 적음)
-            this.rawMenusJson = "[]";
-            return;
-        }
-
-        try {
-            this.rawMenusJson = objectMapper.writeValueAsString(rawMenus);
-        } catch (Exception e) {
-            System.err.println("❌ rawMenus JSON 변환 실패: " + e.getMessage());
-            this.rawMenusJson = "[]"; // 실패 시 빈 배열 저장
-        }
-    }
-
-    // [기존 유지] 메뉴 전체를 문자열로 연결하여 반환 (로그용/히스토리용)
-    public String getMenuString() {
-        return Stream.of(rice, soup, main1, main2, side, kimchi, dessert)
-                .filter(Objects::nonNull)
-                .filter(s -> !s.isEmpty())
-                .collect(Collectors.joining(", "));
-    }
-
-    // [기존 유지] 안전하게 리스트 요소 가져오기
-    private String getSafe(List<String> list, int index) {
-        if (list != null && list.size() > index) {
-            return list.get(index);
-        }
-        return null;
-    }
 }
