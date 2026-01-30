@@ -23,16 +23,17 @@
 hs_err_pid*
 replay_pid*
 
-# Gradle
-.gradle/
-build/
+# Gradle (anywhere)
+**/.gradle/
+**/build/
 
-# IntelliJ
-.idea/
-*.iml
-out/
+# IntelliJ (anywhere)
+**/.idea/
+**/*.iml
+**/out/
 
 # OS
 .DS_Store
 
+# Others
 .claude/
