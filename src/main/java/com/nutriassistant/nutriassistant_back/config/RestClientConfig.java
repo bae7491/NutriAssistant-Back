@@ -1,32 +1,31 @@
 package com.nutriassistant.nutriassistant_back.config;
 
-import java.time.Duration;
-
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.web.client.RestClient;
+
+import java.time.Duration;
 
 @Configuration
 public class RestClientConfig {
 
-    /**
-     * FastAPI 서버 베이스 URL
-     * - 기본값: http://localhost:8000
-     * - application.yml/properties에서 fastapi.base-url 로 덮어쓸 수 있음
-     */
-    @Value("${fastapi.base-url:http://localhost:8000}")
+    // application.yml에 설정이 없으면 기본값(localhost:8000) 사용
+    @Value("${fastapi.base-url:http://localhost:8001}")
     private String fastApiBaseUrl;
 
-    /**
-     * FastAPI 호출용 RestTemplate
-     * - rootUri를 지정해두면 서비스에서 "/v1/.." 처럼 상대 경로로 호출 가능
-     */
     @Bean
-    public RestTemplate restTemplate(RestTemplateBuilder builder) {
-        return builder
-                .rootUri(fastApiBaseUrl)
+    public RestClient restClient() {
+        // 1. 타임아웃 설정 (AI 분석 대기 시간 고려)
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(10000); // 연결 10초
+        factory.setReadTimeout(100000);    // 읽기 100초
+
+        // 2. RestClient 생성 및 Base URL 설정
+        return RestClient.builder()
+                .baseUrl(fastApiBaseUrl)
+                .requestFactory(factory)
                 .build();
     }
 }
