@@ -1,22 +1,10 @@
 package com.nutriassistant.nutriassistant_back.MealPlan.service;
 
-import com.nutriassistant.nutriassistant_back.MealPlan.DTO.MealPlanAIReplaceResponse;
-import com.nutriassistant.nutriassistant_back.MealPlan.DTO.MealPlanCreateRequest;
-import com.nutriassistant.nutriassistant_back.MealPlan.DTO.MealPlanDetailResponse;
-import com.nutriassistant.nutriassistant_back.MealPlan.DTO.MealPlanGenerateRequest;
-import com.nutriassistant.nutriassistant_back.MealPlan.DTO.MealPlanGenerateResponse;
-import com.nutriassistant.nutriassistant_back.MealPlan.DTO.MealPlanHistoryResponse;
-import com.nutriassistant.nutriassistant_back.MealPlan.DTO.MealPlanManualUpdateResponse;
-import com.nutriassistant.nutriassistant_back.MealPlan.DTO.MealPlanMonthlyResponse;
-import com.nutriassistant.nutriassistant_back.MealPlan.DTO.MealPlanWeeklyResponse;
+import com.nutriassistant.nutriassistant_back.MealPlan.DTO.*;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import com.nutriassistant.nutriassistant_back.MealPlan.entity.*;
-import com.nutriassistant.nutriassistant_back.MealPlan.entity.*;
-import com.nutriassistant.nutriassistant_back.MealPlan.repository.FoodInfoRepository;
-import com.nutriassistant.nutriassistant_back.MealPlan.repository.MealPlanMenuRepository;
-import com.nutriassistant.nutriassistant_back.MealPlan.repository.MealPlanRepository;
-import com.nutriassistant.nutriassistant_back.MealPlan.repository.MenuHistoryRepository;
+import com.nutriassistant.nutriassistant_back.MealPlan.repository.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -74,15 +62,6 @@ public class MealPlanService {
         this.restTemplate = restTemplate;
         this.objectMapper = objectMapper;
         this.foodInfoRepository = foodInfoRepository;
-    }
-
-    // =========================================================================
-    // [조회] 월간 식단표 조회
-    // =========================================================================
-    @Transactional(readOnly = true)
-    public MealPlan getById(Long mealPlanId) {
-        return mealPlanRepository.findById(mealPlanId)
-                .orElseThrow(() -> new IllegalArgumentException("해당 ID의 식단 계획을 찾을 수 없습니다. ID=" + mealPlanId));
     }
 
     @Transactional(readOnly = true)
@@ -216,7 +195,7 @@ public class MealPlanService {
     }
 
     // =========================================================================
-    // [저장 로직] 식단 데이터 저장 및 갱신
+    // 2. [저장 로직] 식단 데이터 저장 및 갱신
     // =========================================================================
     @Transactional
     public MealPlan createOrReplace(MealPlanCreateRequest req) {
@@ -248,210 +227,12 @@ public class MealPlanService {
 
         return savedPlan;
     }
-//
-//    // =========================================================================
-//    // 2. [AI 수정] 원클릭 메뉴 대체 (1끼)
-//    // =========================================================================
-//    @Transactional
-//    public void replaceMenuWithAi(String dateStr, String mealTypeStr) {
-//        LocalDate date = LocalDate.parse(dateStr);
-//        MealType mealType = MealType.valueOf(mealTypeStr);
-//
-//        // FastAPI 요청
-//        String url = String.format("%s/v1/menus/single:generate", fastApiBaseUrl);
-//        HttpHeaders headers = createHeaders();
-//        Map<String, String> body = Map.of("date", dateStr, "meal_type", mealTypeStr);
-//        HttpEntity<Map<String, String>> entity = new HttpEntity<>(body, headers);
-//
-//        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, entity, Map.class);
-//        Map<String, Object> result = response.getBody();
-//
-//        // 8개 후보군 검증
-//        System.out.println("\n🕵️ [AI 로직 검증] 8개 후보군 생성 여부 확인");
-//        if (result != null) {
-//            if (result.containsKey("candidates")) {
-//                List<?> candidates = (List<?>) result.get("candidates");
-//                int count = candidates.size();
-//                System.out.println("✅ 'candidates' 데이터 발견됨!");
-//                System.out.println("📊 생성된 후보 개수: " + count + "개");
-//                if (count == 8) {
-//                    System.out.println("🎉 검증 성공: 8개의 후보 중에서 최적의 식단이 선택되었습니다.");
-//                } else {
-//                    System.out.println("⚠️ 검증 경고: 후보 개수가 8개가 아닙니다 (" + count + "개).");
-//                }
-//            } else {
-//                System.out.println("⚠️ 'candidates' 키가 없습니다.");
-//            }
-//        }
-//        System.out.println("--------------------------------------------------\n");
-//
-//        // Python 응답 디버깅
-//        System.out.println("=== Python AI 응답 ===");
-//        System.out.println(result);
-//        System.out.println("menus: " + result.get("menus"));
-//        System.out.println("rawMenus: " + result.get("rawMenus"));
-//        System.out.println("dessert: " + result.get("dessert"));
-//        System.out.println("kcal: " + result.get("kcal"));
-//        System.out.println("carb: " + result.get("carb"));
-//        System.out.println("prot: " + result.get("prot"));
-//        System.out.println("fat: " + result.get("fat"));
-//        System.out.println("cost: " + result.get("cost"));
-//        System.out.println("====================");
-//
-//        MealPlanMenu menu = mealPlanMenuRepository.findByDateAndType(date, mealType)
-//                .orElseThrow(() -> new IllegalArgumentException("수정할 식단 데이터가 없습니다."));
-//
-//        String oldMenus = menu.getMenuString();
-//
-//        List<String> newMenus = (List<String>) result.get("menus");
-//        List<String> rawMenus = (List<String>) result.get("rawMenus");
-//        String aiReason = (String) result.get("reason");
-//
-//        // ★★★ 모든 정보를 한 번에 업데이트 ★★★
-//        // 1. 메뉴 정보 업데이트
-//        menu.updateMenus(newMenus);
-//        menu.updateRawMenus(rawMenus, objectMapper);
-//        menu.setAiComment(aiReason);
-//
-//        // 2. 영양 정보 업데이트
-//        if (result.get("kcal") != null) {
-//            Double kcalValue = Double.valueOf(result.get("kcal").toString());
-//            System.out.println("🔄 kcal 업데이트: " + menu.getKcal() + " -> " + kcalValue);
-//            menu.setKcal(kcalValue);
-//        }
-//        if (result.get("carb") != null) {
-//            Double carbValue = Double.valueOf(result.get("carb").toString());
-//            System.out.println("🔄 carb 업데이트: " + menu.getCarb() + " -> " + carbValue);
-//            menu.setCarb(carbValue);
-//        }
-//        if (result.get("prot") != null) {
-//            Double protValue = Double.valueOf(result.get("prot").toString());
-//            System.out.println("🔄 prot 업데이트: " + menu.getProt() + " -> " + protValue);
-//            menu.setProt(protValue);
-//        }
-//        if (result.get("fat") != null) {
-//            Double fatValue = Double.valueOf(result.get("fat").toString());
-//            System.out.println("🔄 fat 업데이트: " + menu.getFat() + " -> " + fatValue);
-//            menu.setFat(fatValue);
-//        }
-//
-//        // 3. 비용 정보 업데이트
-//        if (result.get("cost") != null) {
-//            Integer costValue = Integer.valueOf(result.get("cost").toString());
-//            System.out.println("🔄 cost 업데이트: " + menu.getCost() + " -> " + costValue);
-//            menu.setCost(costValue);
-//        }
-//
-//        // 4. DB 저장 (한 번만!)
-//        mealPlanMenuRepository.save(menu);
-//
-//        // 5. 히스토리 저장 (한 번만!)
-//        saveHistory(dateStr, mealTypeStr, oldMenus, newMenus.toString(), aiReason, MenuHistory.ActionType.AI_AUTO_REPLACE);
-//
-//        System.out.println("✅ 업데이트 완료!");
-//    }
-//
-//    // =========================================================================
-//    // 3. [수동 수정] 사용자가 직접 메뉴 입력
-//    // =========================================================================
-//    @Transactional
-//    public void updateMenuManually(String dateStr, String mealTypeStr, List<String> newMenus, String reason) {
-//        // 1. 날짜 및 타입 파싱
-//        LocalDate date = LocalDate.parse(dateStr);
-//        MealType mealType = MealType.valueOf(mealTypeStr);
-//
-//        // 2. 기존 식단 데이터 조회
-//        MealPlanMenu menu = mealPlanMenuRepository.findByDateAndType(date, mealType)
-//                .orElseThrow(() -> new IllegalArgumentException("수정할 식단 데이터가 없습니다."));
-//
-//        String oldMenus = menu.getMenuString();
-//
-//        // 3. 변수 초기화
-//        List<String> finalDisplayMenus = new ArrayList<>();
-//        List<String> pureRawMenus = new ArrayList<>();
-//
-//        // [수정] 영양소 합산용 변수 (계산은 double로 하고 나중에 Entity에 Double로 넣음)
-//        int totalKcal = 0;
-//        double totalCarb = 0;
-//        double totalProt = 0;
-//        double totalFat = 0;
-//
-//        // --- [로직 시작] 입력된 메뉴 리스트 순회 ---
-//        for (String inputMenuName : newMenus) {
-//            String pureName = inputMenuName.replaceAll("\\s*\\([^)]*\\)", "").trim();
-//            if (pureName.isEmpty()) continue;
-//            pureRawMenus.add(pureName);
-//
-//            // (2) 1차 시도: Repository Query로 검색
-//            Optional<FoodInfo> foodOpt = foodInfoRepository.findByFoodNameIgnoreSpace(pureName);
-//
-//            // (3) [비상 대책] 2차 시도: 전수 조사 (DB 쿼리가 실패할 경우 대비)
-//            if (foodOpt.isEmpty()) {
-//                System.out.println("⚠️ Query 검색 실패: [" + pureName + "] -> 전수 조사 시도");
-//                List<FoodInfo> allFoods = foodInfoRepository.findAll();
-//
-//                for (FoodInfo dbFood : allFoods) {
-//                    String dbNameClean = dbFood.getFoodName().replace(" ", "");
-//                    String inputNameClean = pureName.replace(" ", "");
-//
-//                    if (dbNameClean.equals(inputNameClean)) {
-//                        System.out.println("✅ [전수 조사 성공] (" + dbFood.getFoodName() + ")");
-//                        foodOpt = Optional.of(dbFood);
-//                        break;
-//                    }
-//                }
-//            }
-//
-//            // (4) 데이터 처리
-//            if (foodOpt.isPresent()) {
-//                FoodInfo food = foodOpt.get();
-//
-//                // 4-1. 알레르기 정보
-//                String allergy = (food.getAllergyInfo() != null && !food.getAllergyInfo().isEmpty())
-//                        ? "(" + food.getAllergyInfo() + ")" : "";
-//                finalDisplayMenus.add(pureName + allergy);
-//
-//                // 4-2. 영양 성분 누적 ([수정] BigDecimal -> double 변환 후 누적)
-//                totalKcal += (food.getKcal() != null) ? food.getKcal() : 0;
-//                totalCarb += (food.getCarbs() != null) ? food.getCarbs().doubleValue() : 0;
-//                totalProt += (food.getProtein() != null) ? food.getProtein().doubleValue() : 0;
-//                totalFat += (food.getFat() != null) ? food.getFat().doubleValue() : 0;
-//
-//                System.out.println("🆗 매핑 완료: " + pureName);
-//            } else {
-//                finalDisplayMenus.add(pureName);
-//                System.out.println("❌ 실패: DB에 없음 -> [" + pureName + "]");
-//            }
-//        }
-//
-//        // --- [저장 단계] ---
-//        try {
-//            menu.updateMenus(finalDisplayMenus);
-//            String rawJson = objectMapper.writeValueAsString(pureRawMenus);
-//            menu.setRawMenusJson(rawJson);
-//        } catch (Exception e) {
-//            throw new RuntimeException("JSON 변환 오류", e);
-//        }
-//
-//        // [수정] 합산된 영양 정보 저장
-//        // Entity(MealPlanMenu)의 필드는 Double 타입입니다.
-//        // 따라서 계산된 double 값들을 그대로 넣어주어야 합니다. (int 강제 변환 금지)
-//        menu.setKcal((double) totalKcal);
-//        menu.setCarb(totalCarb);
-//        menu.setProt(totalProt);
-//        menu.setFat(totalFat);
-//
-//        // 기타 정보 저장
-//        menu.setAiComment(reason);
-//        mealPlanMenuRepository.save(menu);
-//
-//        saveHistory(dateStr, mealTypeStr, oldMenus, finalDisplayMenus.toString(), reason, MenuHistory.ActionType.MANUAL_UPDATE);
-//    }
 
     // =========================================================================
-    // 4. [헬퍼] 공통 내부 메서드
+    // 3. [헬퍼] 공통 내부 메서드
     // =========================================================================
-    private void saveHistory(String date, String type, String oldM, String newM, String reason, MenuHistory.ActionType action) {
+    private void saveHistory(String date, String type, String oldM, String newM, String reason,
+                             MenuHistory.ActionType action, LocalDateTime menuCreatedAt) {
         MenuHistory history = MenuHistory.builder()
                 .mealDate(date)
                 .mealType(type)
@@ -459,6 +240,7 @@ public class MealPlanService {
                 .newMenus(newM)
                 .reason(reason)
                 .actionType(action)
+                .menuCreatedAt(menuCreatedAt)
                 .build();
         menuHistoryRepository.save(history);
     }
@@ -474,7 +256,7 @@ public class MealPlanService {
     }
 
     // =========================================================================
-    // 5. [응답 변환] MealPlan -> MealPlanGenerateResponse 리스트 변환
+    // 4. [응답 변환] MealPlan -> MealPlanGenerateResponse 리스트 변환
     // =========================================================================
     public List<MealPlanGenerateResponse> toResponseList(MealPlan mealPlan) {
         List<MealPlanMenu> menus = mealPlanMenuRepository.findAllByMealPlanId(mealPlan.getId());
@@ -580,7 +362,7 @@ public class MealPlanService {
     }
 
     // =========================================================================
-    // 6. [응답 변환] MealPlan -> MealPlanMonthlyResponse 변환
+    // 5. [응답 변환] MealPlan -> MealPlanMonthlyResponse 변환
     // =========================================================================
     public MealPlanMonthlyResponse toMonthlyResponse(MealPlan mealPlan) {
         List<MealPlanMenu> menus = mealPlanMenuRepository.findByMealPlanId(mealPlan.getId());
@@ -694,7 +476,7 @@ public class MealPlanService {
     }
 
     // =========================================================================
-    // 7. [상세 조회] 일간 식단표 상세 조회
+    // 6. [상세 조회] 일간 식단표 상세 조회
     // =========================================================================
     @Transactional(readOnly = true)
     public Optional<MealPlanMenu> findByDateAndMealType(Long schoolId, LocalDate menuDate, MealType mealType) {
@@ -800,7 +582,7 @@ public class MealPlanService {
     }
 
     // =========================================================================
-    // 8. [주간 조회] 주간 식단표 조회
+    // 7. [주간 조회] 주간 식단표 조회
     // =========================================================================
     @Transactional(readOnly = true)
     public List<MealPlanMenu> findWeeklyMenus(Long schoolId, LocalDate weekStart, LocalDate weekEnd) {
@@ -880,7 +662,7 @@ public class MealPlanService {
     }
 
     // =========================================================================
-    // 9. [AI 대체] 1끼 AI 자동 대체
+    // 8. [AI 대체] 1끼 AI 자동 대체
     // =========================================================================
     @Transactional
     public MealPlanAIReplaceResponse replaceMenuWithAi(Long schoolId, LocalDate date, MealType mealType) {
@@ -926,23 +708,36 @@ public class MealPlanService {
         );
 
         JsonNode result = Objects.requireNonNull(response.getBody());
-        log.info("✅ FastAPI AI 응답 수신");
+        log.info("✅ FastAPI AI 응답 수신: {}", result.toString());
 
         // 3. 메뉴 업데이트
-        if (result.has("Rice")) menu.setRiceDisplay(result.get("Rice").asText(null));
-        if (result.has("Soup")) menu.setSoupDisplay(result.get("Soup").asText(null));
-        if (result.has("Main1")) menu.setMain1Display(result.get("Main1").asText(null));
-        if (result.has("Main2")) menu.setMain2Display(result.get("Main2").asText(null));
-        if (result.has("Side")) menu.setSideDisplay(result.get("Side").asText(null));
-        if (result.has("Kimchi")) menu.setKimchiDisplay(result.get("Kimchi").asText(null));
-        if (result.has("Dessert")) menu.setDessertDisplay(result.get("Dessert").asText(null));
+        // FastAPI는 "menus" 배열로 응답: ["밥", "국", "메인1", "메인2", "반찬", "김치", "디저트"]
+        if (result.has("menus") && result.get("menus").isArray()) {
+            JsonNode menusArray = result.get("menus");
+            if (menusArray.size() > 0) menu.setRiceDisplay(enrichWithAllergen(menusArray.get(0).asText(null)));
+            if (menusArray.size() > 1) menu.setSoupDisplay(enrichWithAllergen(menusArray.get(1).asText(null)));
+            if (menusArray.size() > 2) menu.setMain1Display(enrichWithAllergen(menusArray.get(2).asText(null)));
+            if (menusArray.size() > 3) menu.setMain2Display(enrichWithAllergen(menusArray.get(3).asText(null)));
+            if (menusArray.size() > 4) menu.setSideDisplay(enrichWithAllergen(menusArray.get(4).asText(null)));
+            if (menusArray.size() > 5) menu.setKimchiDisplay(enrichWithAllergen(menusArray.get(5).asText(null)));
+            if (menusArray.size() > 6) menu.setDessertDisplay(enrichWithAllergen(menusArray.get(6).asText(null)));
+        }
 
-        // 영양 정보 업데이트
-        if (result.has("Kcal")) menu.setKcal(BigDecimal.valueOf(result.get("Kcal").asDouble()));
-        if (result.has("Carb")) menu.setCarb(BigDecimal.valueOf(result.get("Carb").asDouble()));
-        if (result.has("Prot")) menu.setProt(BigDecimal.valueOf(result.get("Prot").asDouble()));
-        if (result.has("Fat")) menu.setFat(BigDecimal.valueOf(result.get("Fat").asDouble()));
-        if (result.has("Cost")) menu.setCost(result.get("Cost").asInt());
+        // 영양 정보 업데이트 (소문자 키도 지원)
+        if (result.has("kcal")) menu.setKcal(BigDecimal.valueOf(result.get("kcal").asDouble()));
+        else if (result.has("Kcal")) menu.setKcal(BigDecimal.valueOf(result.get("Kcal").asDouble()));
+
+        if (result.has("carb")) menu.setCarb(BigDecimal.valueOf(result.get("carb").asDouble()));
+        else if (result.has("Carb")) menu.setCarb(BigDecimal.valueOf(result.get("Carb").asDouble()));
+
+        if (result.has("prot")) menu.setProt(BigDecimal.valueOf(result.get("prot").asDouble()));
+        else if (result.has("Prot")) menu.setProt(BigDecimal.valueOf(result.get("Prot").asDouble()));
+
+        if (result.has("fat")) menu.setFat(BigDecimal.valueOf(result.get("fat").asDouble()));
+        else if (result.has("Fat")) menu.setFat(BigDecimal.valueOf(result.get("Fat").asDouble()));
+
+        if (result.has("cost")) menu.setCost(result.get("cost").asInt());
+        else if (result.has("Cost")) menu.setCost(result.get("Cost").asInt());
 
         // AI 코멘트
         String aiComment = result.has("reason") ? result.get("reason").asText() : "AI 자동 대체";
@@ -962,7 +757,8 @@ public class MealPlanService {
                 oldMenus,
                 newMenus,
                 aiComment,
-                MenuHistory.ActionType.AI_AUTO_REPLACE
+                MenuHistory.ActionType.AI_AUTO_REPLACE,
+                menu.getCreatedAt()
         );
 
         return MealPlanAIReplaceResponse.builder()
@@ -977,7 +773,7 @@ public class MealPlanService {
     }
 
     // =========================================================================
-    // 10. [수동 수정] 식단표 수동 수정
+    // 9. [수동 수정] 식단표 수동 수정
     // =========================================================================
     @Transactional
     public MealPlanManualUpdateResponse updateMenuManually(Long mealPlanId, Long menuId, List<String> newMenus, String reason) {
@@ -1079,9 +875,10 @@ public class MealPlanService {
                 savedMenu.getMenuDate().toString(),
                 savedMenu.getMealType().name(),
                 oldMenus,
-                String.join(", ", displayMenus),
+                String.join(MENU_DELIMITER, displayMenus),
                 reason,
-                MenuHistory.ActionType.MANUAL_UPDATE
+                MenuHistory.ActionType.MANUAL_UPDATE,
+                menu.getCreatedAt()
         );
 
         // 6. 응답 생성
@@ -1102,6 +899,37 @@ public class MealPlanService {
                 .build();
     }
 
+    private static final String MENU_DELIMITER = ", ";
+
+    /**
+     * 메뉴 이름에 FoodInfo DB에서 알레르기 정보를 조회하여 붙임
+     * 예: "사과" -> "사과 (13)" (알레르기 정보가 있는 경우)
+     */
+    private String enrichWithAllergen(String menuName) {
+        if (menuName == null || menuName.isBlank()) {
+            return null;
+        }
+
+        // 이미 알레르기 정보가 있으면 그대로 반환
+        if (menuName.matches(".*\\([\\d,\\s]+\\)$")) {
+            return menuName;
+        }
+
+        // 순수 메뉴 이름 추출 (혹시 괄호가 있으면 제거)
+        String pureName = menuName.replaceAll("\\s*\\([^)]*\\)", "").trim();
+
+        // FoodInfo DB에서 알레르기 정보 조회
+        Optional<FoodInfo> foodOpt = foodInfoRepository.findByFoodNameIgnoreSpace(pureName);
+        if (foodOpt.isPresent()) {
+            FoodInfo food = foodOpt.get();
+            if (food.getAllergyInfo() != null && !food.getAllergyInfo().isEmpty()) {
+                return pureName + " (" + food.getAllergyInfo() + ")";
+            }
+        }
+
+        return pureName;
+    }
+
     private String buildMenuString(MealPlanMenu menu) {
         List<String> menus = new ArrayList<>();
         if (menu.getRiceDisplay() != null) menus.add(menu.getRiceDisplay());
@@ -1111,53 +939,54 @@ public class MealPlanService {
         if (menu.getSideDisplay() != null) menus.add(menu.getSideDisplay());
         if (menu.getKimchiDisplay() != null) menus.add(menu.getKimchiDisplay());
         if (menu.getDessertDisplay() != null) menus.add(menu.getDessertDisplay());
-        return String.join(", ", menus);
+        return String.join(MENU_DELIMITER, menus);
     }
 
     // =========================================================================
-    // 11. [히스토리 조회] 식단표 수정 히스토리 조회
+    // 10. [히스토리 조회] 식단표 수정 히스토리 조회 (날짜 범위 기반)
     // =========================================================================
     @Transactional(readOnly = true)
-    public MealPlanHistoryResponse getHistories(String date, String mealType, String actionType, int page, int size) {
-        log.info("📜 히스토리 조회: date={}, mealType={}, actionType={}, page={}, size={}",
-                date, mealType, actionType, page, size);
+    public MealPlanHistoryResponse getHistories(String startDate, String endDate, String actionType, int page, int size) {
+        log.info("📜 히스토리 조회: startDate={}, endDate={}, actionType={}, page={}, size={}",
+                startDate, endDate, actionType, page, size);
 
         PageRequest pageRequest = PageRequest.of(page, size);
         Page<MenuHistory> historyPage;
 
-        // 조건에 따른 조회
+        // actionType 파싱 (ALL은 전체 조회)
         MenuHistory.ActionType actionTypeEnum = null;
+        boolean isAllActionType = false;
+
         if (actionType != null && !actionType.isBlank()) {
-            try {
-                actionTypeEnum = MenuHistory.ActionType.valueOf(actionType.toUpperCase());
-            } catch (IllegalArgumentException e) {
-                log.warn("⚠️ 유효하지 않은 actionType: {}", actionType);
+            String upperActionType = actionType.toUpperCase();
+            if ("ALL".equals(upperActionType)) {
+                isAllActionType = true;
+            } else {
+                try {
+                    actionTypeEnum = MenuHistory.ActionType.valueOf(upperActionType);
+                } catch (IllegalArgumentException e) {
+                    log.warn("⚠️ 유효하지 않은 actionType: {}", actionType);
+                }
             }
         }
 
-        boolean hasDate = date != null && !date.isBlank();
-        boolean hasMealType = mealType != null && !mealType.isBlank();
-        boolean hasActionType = actionTypeEnum != null;
+        boolean hasDateRange = startDate != null && !startDate.isBlank() && endDate != null && !endDate.isBlank();
+        boolean hasActionType = actionTypeEnum != null && !isAllActionType;
 
-        if (hasDate && hasMealType && hasActionType) {
-            historyPage = menuHistoryRepository.findByMealDateAndMealTypeAndActionTypeOrderByIdDesc(
-                    date, mealType.toUpperCase(), actionTypeEnum, pageRequest);
-        } else if (hasDate && hasMealType) {
-            historyPage = menuHistoryRepository.findByMealDateAndMealTypeOrderByIdDesc(
-                    date, mealType.toUpperCase(), pageRequest);
-        } else if (hasDate && hasActionType) {
-            historyPage = menuHistoryRepository.findByMealDateAndActionTypeOrderByIdDesc(
-                    date, actionTypeEnum, pageRequest);
-        } else if (hasMealType && hasActionType) {
-            historyPage = menuHistoryRepository.findByMealTypeAndActionTypeOrderByIdDesc(
-                    mealType.toUpperCase(), actionTypeEnum, pageRequest);
-        } else if (hasDate) {
-            historyPage = menuHistoryRepository.findByMealDateOrderByIdDesc(date, pageRequest);
-        } else if (hasMealType) {
-            historyPage = menuHistoryRepository.findByMealTypeOrderByIdDesc(mealType.toUpperCase(), pageRequest);
+        // 조건에 따른 조회
+        if (hasDateRange && hasActionType) {
+            // 날짜 범위 + 액션타입
+            historyPage = menuHistoryRepository.findByMealDateBetweenAndActionTypeOrderByIdDesc(
+                    startDate, endDate, actionTypeEnum, pageRequest);
+        } else if (hasDateRange) {
+            // 날짜 범위만
+            historyPage = menuHistoryRepository.findByMealDateBetweenOrderByIdDesc(
+                    startDate, endDate, pageRequest);
         } else if (hasActionType) {
+            // 액션타입만
             historyPage = menuHistoryRepository.findByActionTypeOrderByIdDesc(actionTypeEnum, pageRequest);
         } else {
+            // 전체 조회
             historyPage = menuHistoryRepository.findAllByOrderByIdDesc(pageRequest);
         }
 
@@ -1166,7 +995,10 @@ public class MealPlanService {
                 .collect(Collectors.toList());
 
         return MealPlanHistoryResponse.builder()
-                .count(items.size())
+                .currentPage(page)
+                .pageSize(size)
+                .totalItems(historyPage.getTotalElements())
+                .totalPages(historyPage.getTotalPages())
                 .items(items)
                 .build();
     }
@@ -1180,6 +1012,8 @@ public class MealPlanService {
                 .oldMenus(parseMenuString(history.getOldMenus()))
                 .newMenus(parseMenuString(history.getNewMenus()))
                 .reason(history.getReason())
+                .menuCreatedAt(history.getMenuCreatedAt())  // 식단표 원본 생성 시간
+                .createdAt(history.getCreatedAt())          // 히스토리 생성 시간 = 수정 발생 시간
                 .build();
     }
 
@@ -1187,10 +1021,45 @@ public class MealPlanService {
         if (menuString == null || menuString.isBlank()) {
             return new ArrayList<>();
         }
-        // 콤마로 분리하여 리스트로 변환
-        return Arrays.stream(menuString.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .collect(Collectors.toList());
+
+        // 기존 " || " 구분자 데이터 호환
+        if (menuString.contains(" || ")) {
+            return Arrays.stream(menuString.split("\\s*\\|\\|\\s*"))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .collect(Collectors.toList());
+        }
+
+        // 괄호 밖의 콤마만 분리 (알레르기 정보 괄호 내 콤마 무시)
+        List<String> result = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        int parenDepth = 0;
+
+        for (int i = 0; i < menuString.length(); i++) {
+            char c = menuString.charAt(i);
+            if (c == '(') {
+                parenDepth++;
+                current.append(c);
+            } else if (c == ')') {
+                parenDepth--;
+                current.append(c);
+            } else if (c == ',' && parenDepth == 0) {
+                String item = current.toString().trim();
+                if (!item.isEmpty()) {
+                    result.add(item);
+                }
+                current = new StringBuilder();
+            } else {
+                current.append(c);
+            }
+        }
+
+        // 마지막 항목 추가
+        String lastItem = current.toString().trim();
+        if (!lastItem.isEmpty()) {
+            result.add(lastItem);
+        }
+
+        return result;
     }
 }

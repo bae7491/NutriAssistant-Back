@@ -1,5 +1,6 @@
 package com.nutriassistant.nutriassistant_back.MealPlan.DTO;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -24,6 +25,7 @@ public class MealPlanGenerateRequest {
     @Setter
     public static class GenerateOptions {
 
+        @JsonProperty("num_generations")
         @Min(value = 1, message = "생성 횟수는 최소 1이어야 합니다.")
         @Max(value = 31, message = "생성 횟수는 최대 31이어야 합니다.")
         private Integer numGenerations;
@@ -35,17 +37,22 @@ public class MealPlanGenerateRequest {
     @Getter
     @Setter
     public static class Constraints {
+        @JsonProperty("nutrition_key")
         private String nutritionKey;
 
+        @JsonProperty("target_price")
         @Positive(message = "목표 단가는 양수여야 합니다.")
         private Integer targetPrice;
 
+        @JsonProperty("max_price_limit")
         @Positive(message = "상한 단가는 양수여야 합니다.")
         private Integer maxPriceLimit;
 
+        @JsonProperty("cook_staff")
         @Positive(message = "조리 인력은 양수여야 합니다.")
         private Integer cookStaff;
 
+        @JsonProperty("facility_text")
         private String facilityText;
     }
 }
