@@ -1,4 +1,2 @@
 #!/bin/bash
-  cd /home/ec2-user/app
-  chmod +x gradlew || true
-  ./gradlew build -x test
+  echo "Install step - nothing to do, already built by CodeBuild"
