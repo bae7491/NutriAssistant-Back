@@ -1,2 +1,2 @@
 #!/bin/bash
-  pkill -f "nutriassistant" || true
+pkill -f "java -jar" || true
