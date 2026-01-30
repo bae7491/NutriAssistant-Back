@@ -1,5 +1,6 @@
 package com.nutriassistant.nutriassistant_back.MealPlan.DTO;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
 import lombok.Getter;
@@ -13,7 +14,9 @@ import java.util.Map;
 @Builder
 public class MealPlanMonthlyResponse {
 
+    @JsonProperty("meal_plan_id")
     private Long mealPlanId;
+
     private Integer year;
     private Integer month;
 
@@ -21,9 +24,11 @@ public class MealPlanMonthlyResponse {
     private Long schoolId;
 
     @JsonProperty("created_at")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
 
     @JsonProperty("updated_at")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime updatedAt;
 
     private List<MenuDetail> menus;

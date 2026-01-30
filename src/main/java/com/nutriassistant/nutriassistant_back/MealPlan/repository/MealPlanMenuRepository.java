@@ -28,25 +28,6 @@ public interface MealPlanMenuRepository extends JpaRepository<MealPlanMenu, Long
     void deleteByMealPlan_Id(Long mealPlanId);
 
     /**
-     * 특정 날짜와 식사 유형으로 메뉴 조회
-     */
-    Optional<MealPlanMenu> findByMealPlanIdAndMenuDateAndMealType(
-            Long mealPlanId, LocalDate menuDate, MealType mealType
-    );
-
-    /**
-     * 특정 기간의 메뉴 조회
-     */
-    List<MealPlanMenu> findByMealPlanIdAndMenuDateBetween(
-            Long mealPlanId, LocalDate startDate, LocalDate endDate
-    );
-
-    /**
-     * 날짜와 식사 유형으로 메뉴 조회
-     */
-    Optional<MealPlanMenu> findByMenuDateAndMealType(LocalDate menuDate, MealType mealType);
-
-    /**
      * 학교 ID, 날짜, 식사 유형으로 메뉴 조회
      */
     Optional<MealPlanMenu> findByMealPlan_SchoolIdAndMenuDateAndMealType(

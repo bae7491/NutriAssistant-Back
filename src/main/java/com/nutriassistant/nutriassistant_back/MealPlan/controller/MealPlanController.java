@@ -4,13 +4,8 @@ import com.nutriassistant.nutriassistant_back.MealPlan.DTO.*;
 import com.nutriassistant.nutriassistant_back.MealPlan.entity.MealPlan;
 import com.nutriassistant.nutriassistant_back.MealPlan.entity.MealPlanMenu;
 import com.nutriassistant.nutriassistant_back.MealPlan.entity.MealType;
-import com.nutriassistant.nutriassistant_back.MealPlan.entity.MenuHistory;
-import com.nutriassistant.nutriassistant_back.MealPlan.repository.MealPlanMenuRepository;
-import com.nutriassistant.nutriassistant_back.MealPlan.repository.MenuHistoryRepository; // [추가]
 import com.nutriassistant.nutriassistant_back.MealPlan.service.MealPlanService;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nutriassistant.nutriassistant_back.common.ApiResponse;
+import com.nutriassistant.nutriassistant_back.global.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tomcat.util.net.openssl.ciphers.Authentication;
 import org.springframework.http.HttpStatus;
@@ -25,29 +20,18 @@ import org.springframework.web.client.ResourceAccessException;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
 @RestController
-@RequestMapping("/mealplan") // [중요] Postman 주소와 일치시킴 (/mealplan)
+@RequestMapping("/mealplan")
 public class MealPlanController {
 
     private final MealPlanService mealPlanService;
-    private final MealPlanMenuRepository mealPlanMenuRepository;
-    private final ObjectMapper objectMapper;
-    private final MenuHistoryRepository menuHistoryRepository;
 
-    public MealPlanController(MealPlanService mealPlanService,
-                              MealPlanMenuRepository mealPlanMenuRepository,
-                              MenuHistoryRepository menuHistoryRepository, // [추가] 주입
-                              ObjectMapper objectMapper) {
+    public MealPlanController(MealPlanService mealPlanService) {
         this.mealPlanService = mealPlanService;
-        this.mealPlanMenuRepository = mealPlanMenuRepository;
-        this.menuHistoryRepository = menuHistoryRepository;
-        this.objectMapper = objectMapper;
     }
 
     /**
@@ -110,17 +94,10 @@ public class MealPlanController {
     }
 
     /**
-     * JWT에서 학교 ID 추출
-     * TODO: 실제 JWT 구현 시 수정 필요
+     * JWT에서 학교 ID 추출 (TODO: 실제 JWT 구현 시 수정 필요)
      */
     private Long extractSchoolIdFromAuth(Authentication authentication) {
-        // Mock implementation
-//        if (authentication != null && authentication.getPrincipal() != null) {
-//            // JWT 토큰에서 schoolId 추출 로직
-//            // JwtUserDetails userDetails = (JwtUserDetails) authentication.getPrincipal();
-//            // return userDetails.getSchoolId();
-//        }
-        return 1L; // 개발용 임시값
+        return 1L;
     }
 
     /**
@@ -422,21 +399,28 @@ public class MealPlanController {
 
     /**
      * 식단표 수정 히스토리 조회
+     *
+     * Query Parameters:
+     * - startDate: 조회 시작 날짜 (예: 2026-05-01)
+     * - endDate: 조회 종료 날짜 (예: 2026-05-31)
+     * - actionType: ALL (전체), MANUAL_UPDATE (수동), AI_AUTO_REPLACE (AI 자동)
+     * - page: 페이지 번호 (기본값 0)
+     * - size: 페이지 크기 (기본값 20)
      */
     @GetMapping("/histories")
     public ResponseEntity<ApiResponse<MealPlanHistoryResponse>> getHistories(
-            @RequestParam(required = false) String date,
-            @RequestParam(required = false) String mealType,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
             @RequestParam(required = false) String actionType,
             @RequestParam(required = false, defaultValue = "0") Integer page,
             @RequestParam(required = false, defaultValue = "20") Integer size,
             Authentication authentication
     ) {
         try {
-            log.info("📜 히스토리 조회 API 호출: date={}, mealType={}, actionType={}, page={}, size={}",
-                    date, mealType, actionType, page, size);
+            log.info("📜 히스토리 조회 API 호출: startDate={}, endDate={}, actionType={}, page={}, size={}",
+                    startDate, endDate, actionType, page, size);
 
-            MealPlanHistoryResponse response = mealPlanService.getHistories(date, mealType, actionType, page, size);
+            MealPlanHistoryResponse response = mealPlanService.getHistories(startDate, endDate, actionType, page, size);
 
             if (response.getItems().isEmpty()) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
@@ -487,78 +471,4 @@ public class MealPlanController {
                 ApiResponse.error("요청값 검증에 실패했습니다.")
         );
     }
-
-
-//    // 2. [GET] 월간 식단 조회
-//    // 주소: GET mealplan/monthly/{mealPlanId}
-//    @GetMapping("/monthly/{mealPlanId}")
-//    public ResponseEntity<MealPlanResponse> getOne(@PathVariable Long id) {
-//        MealPlan plan = mealPlanService.getById(id);
-//        List<MealPlanMenu> menuList = mealPlanMenuRepository.findAllByMealPlanId(id);
-//
-//        List<MealMenuResponse> menus = menuList.stream()
-//                .map(this::toMealMenuResponse)
-//                .toList();
-//
-//        return ResponseEntity.ok(new MealPlanResponse(
-//                plan.getId(), plan.getYear(), plan.getMonth(), plan.getGeneratedAt(), menus
-//        ));
-//    }
-//
-//    // 3. [POST] 1끼 AI 자동 대체 (사용자가 찾던 그 기능!)
-//    // 주소: POST mealplan/ai/replace
-//    @PostMapping("/ai/replace")
-//    public ResponseEntity<String> replaceWithAi(@RequestBody Map<String, String> req) {
-//        // Postman Body 예시: { "date": "2026-03-03", "mealType": "LUNCH" }
-//        String date = req.get("date");
-//        String mealType = req.get("mealType");
-//
-//        mealPlanService.replaceMenuWithAi(date, mealType);
-//        return ResponseEntity.ok("AI replaced successfully");
-//    }
-//
-//    // 4. [POST] 수동 수정
-//    // 주소: POST mealplan/manual/update
-//    @PostMapping("/manual/update")
-//    public ResponseEntity<String> updateManually(@RequestBody ManualUpdateRequest req) {
-//        // Postman Body 예시: { "date": "...", "mealType": "...", "menus": ["밥", "국"...], "reason": "..." }
-//        mealPlanService.updateMenuManually(req.date, req.mealType, req.menus, req.reason);
-//        return ResponseEntity.ok("Manually updated successfully");
-//    }
-//
-//    // --- DTO 변환 메서드 ---
-//    private MealMenuResponse toMealMenuResponse(MealPlanMenu menu) {
-//        return new MealMenuResponse(
-//                menu.getId(),
-//                menu.getMenuDate(),
-//                menu.getMealType().name(),
-//                menu.getRice(), menu.getSoup(), menu.getMain1(), menu.getMain2(),
-//                menu.getSide(), menu.getKimchi(), menu.getDessert(),
-//                parseRawMenus(menu.getRawMenusJson()),
-//                (int) Math.round(menu.getKcal() != null ? menu.getKcal() : 0),
-//                (int) Math.round(menu.getCarb() != null ? menu.getCarb() : 0),
-//                (int) Math.round(menu.getProt() != null ? menu.getProt() : 0),
-//                (int) Math.round(menu.getFat() != null ? menu.getFat() : 0), menu.getCost(),
-//                menu.getRawMenusJson()
-//        );
-//    }
-//
-//    private List<String> parseRawMenus(String rawMenusJson) {
-//        try {
-//            if (rawMenusJson == null || rawMenusJson.isBlank()) return Collections.emptyList();
-//            return objectMapper.readValue(rawMenusJson, new TypeReference<List<String>>() {});
-//        } catch (Exception e) {
-//            return Collections.emptyList();
-//        }
-//    }
-//
-//    @GetMapping("/history")
-//    public ResponseEntity<List<MenuHistory>> getAllHistory() {
-//        List<MenuHistory> histories = menuHistoryRepository.findAllByOrderByIdDesc();
-//        return ResponseEntity.ok(histories);
-//    }
-//
-//    // --- 수동 수정용 DTO ---
-//    public record ManualUpdateRequest(String date, String mealType, List<String> menus, String reason) {}
-
 }

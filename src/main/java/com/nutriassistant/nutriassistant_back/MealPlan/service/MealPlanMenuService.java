@@ -5,7 +5,6 @@ import com.nutriassistant.nutriassistant_back.MealPlan.entity.MealPlan;
 import com.nutriassistant.nutriassistant_back.MealPlan.repository.MealPlanRepository;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.nutriassistant.nutriassistant_back.MealPlan.DTO.MealMenuResponse;
 import com.nutriassistant.nutriassistant_back.MealPlan.entity.MealPlanMenu;
 import com.nutriassistant.nutriassistant_back.MealPlan.entity.MealType;
 import com.nutriassistant.nutriassistant_back.MealPlan.repository.MealPlanMenuRepository;
@@ -13,7 +12,6 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
@@ -34,15 +32,6 @@ public class MealPlanMenuService {
         this.objectMapper = objectMapper;
     }
 
-    private List<String> parseRawMenus(String rawJson) {
-        if (rawJson == null || rawJson.isBlank()) return List.of();
-        try {
-            return objectMapper.readValue(rawJson, new TypeReference<List<String>>() {});
-        } catch (Exception e) {
-            return List.of();
-        }
-    }
-
     /**
      * FastAPI(한글) 타입 문자열을 MealType으로 변환
      */
@@ -59,38 +48,6 @@ public class MealPlanMenuService {
             throw new IllegalArgumentException("invalid meal type: " + type);
         }
     }
-
-//    /**
-//     * date + type 로 해당 날짜/타입의 최신(가장 최근에 생성된) 메뉴 1건을 조회
-//     */
-//    public MealMenuResponse getOne(LocalDate date, MealType type) {
-//        MealPlanMenu menu = (MealPlanMenu) mealPlanMenuRepository
-//                .findFirstByMenuDateAndMealTypeOrderByMenuDateDescIdDesc(date, type)
-//                .orElseThrow(() -> new IllegalArgumentException(
-//                        "menu not found: date=" + date + ", type=" + type
-//                ));
-//
-//        // 응답에는 mealPlanId가 아니라 menuId를 내려주도록 구성
-//        return new MealMenuResponse(
-//                menu.getId(),
-//                menu.getMenuDate(),
-//                menu.getMealType().name(),
-//                menu.getRice(),
-//                menu.getSoup(),
-//                menu.getMain1(),
-//                menu.getMain2(),
-//                menu.getSide(),
-//                menu.getKimchi(),
-//                menu.getDessert(),
-//                parseRawMenus(menu.getRawMenusJson()),
-//                (int) Math.round(menu.getKcal() != null ? menu.getKcal() : 0),
-//                (int) Math.round(menu.getCarb() != null ? menu.getCarb() : 0),
-//                (int) Math.round(menu.getProt() != null ? menu.getProt() : 0),
-//                (int) Math.round(menu.getFat() != null ? menu.getFat() : 0),
-//                menu.getCost(),
-//                menu.getRawMenusJson()
-//        );
-//    }
 
     @Transactional
     public void importFromFastApi(Long mealPlanId, JsonNode payload) {

@@ -1,5 +1,6 @@
 package com.nutriassistant.nutriassistant_back.MealPlan.DTO;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
 import lombok.Getter;
@@ -28,5 +29,6 @@ public class MealPlanAIReplaceResponse {
     private String aiComment;
 
     @JsonProperty("updated_at")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime updatedAt;
 }

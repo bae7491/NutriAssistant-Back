@@ -40,9 +40,14 @@ public class MenuHistory {
     @Column(length = 1000)
     private String reason; // 변경 사유 또는 AI 코멘트
 
-//    @CreatedDate
-//    @Column(updatable = false)
-//    private LocalDateTime timestamp; // 변경 일시
+    // 식단표 원본 생성 시간 (MealPlanMenu의 createdAt)
+    @Column(name = "menu_created_at")
+    private LocalDateTime menuCreatedAt;
+
+    // 히스토리 레코드 생성 시간 = 수정 발생 시간
+    @CreatedDate
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
 
     // 변경 유형 정의 Enum
     public enum ActionType {
