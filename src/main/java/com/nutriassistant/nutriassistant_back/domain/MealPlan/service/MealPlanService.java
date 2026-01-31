@@ -8,6 +8,8 @@ import com.nutriassistant.nutriassistant_back.domain.MealPlan.repository.FoodInf
 import com.nutriassistant.nutriassistant_back.domain.MealPlan.repository.MealPlanMenuRepository;
 import com.nutriassistant.nutriassistant_back.domain.MealPlan.repository.MealPlanRepository;
 import com.nutriassistant.nutriassistant_back.domain.MealPlan.repository.MenuHistoryRepository;
+import com.nutriassistant.nutriassistant_back.domain.NewMenu.entity.NewFoodInfo;
+import com.nutriassistant.nutriassistant_back.domain.NewMenu.repository.NewFoodInfoRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -41,6 +43,7 @@ public class MealPlanService {
 
     private final ObjectMapper objectMapper;
     private final FoodInfoRepository foodInfoRepository;
+    private final NewFoodInfoRepository newFoodInfoRepository;
     private final ReportService reportService;
 
     // --- 환경 변수 (application.yml) ---
@@ -57,9 +60,10 @@ public class MealPlanService {
                            MenuHistoryRepository menuHistoryRepository,
                            MealPlanMenuService mealPlanMenuService,
                            ReportService reportService,
-                           RestClient restClient, // 수정됨
+                           RestClient restClient,
                            ObjectMapper objectMapper,
-                           FoodInfoRepository foodInfoRepository
+                           FoodInfoRepository foodInfoRepository,
+                           NewFoodInfoRepository newFoodInfoRepository
     ) {
         this.mealPlanRepository = mealPlanRepository;
         this.mealPlanMenuRepository = mealPlanMenuRepository;
@@ -69,6 +73,7 @@ public class MealPlanService {
         this.restClient = restClient;
         this.objectMapper = objectMapper;
         this.foodInfoRepository = foodInfoRepository;
+        this.newFoodInfoRepository = newFoodInfoRepository;
     }
 
     @Transactional(readOnly = true)
@@ -147,6 +152,18 @@ public class MealPlanService {
         // DB에서 조회한 리포트 추가
         if (reportData != null) {
             requestBody.put("report", objectMapper.convertValue(reportData, Map.class));
+        }
+
+        // ========================================
+        // 2-1. 신메뉴 DB 조회 및 추가
+        // ========================================
+        List<NewFoodInfo> newFoodInfoList = newFoodInfoRepository.findAll();
+        if (!newFoodInfoList.isEmpty()) {
+            List<Map<String, Object>> newMenus = newFoodInfoList.stream()
+                    .map(this::convertNewFoodInfoToMap)
+                    .collect(Collectors.toList());
+            requestBody.put("new_menus", newMenus);
+            log.info("📋 신메뉴 {}개 추가", newMenus.size());
         }
 
         // ========================================
@@ -249,6 +266,30 @@ public class MealPlanService {
             headers.set("X-Internal-Token", internalToken);
         }
         return headers;
+    }
+
+    // NewFoodInfo -> Map 변환 (FastAPI 요청용)
+    private Map<String, Object> convertNewFoodInfoToMap(NewFoodInfo info) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("food_code", info.getFoodCode());
+        map.put("food_name", info.getFoodName());
+        map.put("category", info.getCategory());
+        map.put("serving_basis", info.getServingBasis());
+        map.put("food_weight", info.getFoodWeight());
+        map.put("kcal", info.getKcal());
+        map.put("protein", info.getProtein());
+        map.put("fat", info.getFat());
+        map.put("carbs", info.getCarbs());
+        map.put("calcium", info.getCalcium());
+        map.put("iron", info.getIron());
+        map.put("vitamin_a", info.getVitaminA());
+        map.put("thiamin", info.getThiamin());
+        map.put("riboflavin", info.getRiboflavin());
+        map.put("vitamin_c", info.getVitaminC());
+        map.put("ingredients", info.getIngredients());
+        map.put("allergy_info", info.getAllergyInfo());
+        map.put("recipe", info.getRecipe());
+        return map;
     }
 
     // ... (toResponseList, parseMenuItem, buildAllergenSummary 등의 메서드는 기존과 동일하므로 생략하지 않고 유지) ...
