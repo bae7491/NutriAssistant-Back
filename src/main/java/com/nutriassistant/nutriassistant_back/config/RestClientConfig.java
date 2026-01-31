@@ -5,8 +5,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
-
-import java.time.Duration;
+import org.springframework.web.client.RestTemplate;
 
 @Configuration
 public class RestClientConfig {
@@ -20,12 +19,20 @@ public class RestClientConfig {
         // 1. 타임아웃 설정 (AI 분석 대기 시간 고려)
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(10000); // 연결 10초
-        factory.setReadTimeout(100000);    // 읽기 100초
+        factory.setReadTimeout(180000);    // 읽기 100초
 
         // 2. RestClient 생성 및 Base URL 설정
         return RestClient.builder()
                 .baseUrl(fastApiBaseUrl)
                 .requestFactory(factory)
                 .build();
+    }
+
+    @Bean
+    public RestTemplate restTemplate() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(10000);
+        factory.setReadTimeout(180000);
+        return new RestTemplate(factory);
     }
 }
