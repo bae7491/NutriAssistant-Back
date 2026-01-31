@@ -138,7 +138,7 @@ public class MealPlanService {
                 Map<String, Object> constraints = new HashMap<>();
                 MealPlanGenerateRequest.Constraints c = req.getOptions().getConstraints();
 
-                if (c.getNutritionKey() != null) constraints.put("nutrition_key", c.getNutritionKey());
+                if (c.getNutritionKey() != null) constraints.put("nutrition_key", c.getNutritionKey().name());
                 if (c.getTargetPrice() != null) constraints.put("target_price", c.getTargetPrice());
                 if (c.getMaxPriceLimit() != null) constraints.put("max_price_limit", c.getMaxPriceLimit());
                 if (c.getCookStaff() != null) constraints.put("cook_staff", c.getCookStaff());
@@ -299,7 +299,12 @@ public class MealPlanService {
     // 4. [응답 변환] MealPlan -> MealPlanGenerateResponse 리스트 변환
     // =========================================================================
     public List<MealPlanGenerateResponse> toResponseList(MealPlan mealPlan) {
-        List<MealPlanMenu> menus = mealPlanMenuRepository.findAllByMealPlanId(mealPlan.getId());
+        List<MealPlanMenu> menus = mealPlanMenuRepository.findAllByMealPlanIdOrderByMenuDateAscMealTypeAsc(mealPlan.getId());
+
+        // MealType enum ordinal 기준 정렬 (LUNCH=0, DINNER=1)
+        menus.sort(Comparator
+                .comparing(MealPlanMenu::getMenuDate)
+                .thenComparing(m -> m.getMealType().ordinal()));
 
         return menus.stream()
                 .map(this::toResponse)
@@ -404,7 +409,12 @@ public class MealPlanService {
     // 5. [응답 변환] MealPlan -> MealPlanMonthlyResponse 변환
     // =========================================================================
     public MealPlanMonthlyResponse toMonthlyResponse(MealPlan mealPlan) {
-        List<MealPlanMenu> menus = mealPlanMenuRepository.findByMealPlanId(mealPlan.getId());
+        List<MealPlanMenu> menus = mealPlanMenuRepository.findByMealPlanIdOrderByMenuDateAscMealTypeAsc(mealPlan.getId());
+
+        // MealType enum ordinal 기준 정렬 (LUNCH=0, DINNER=1)
+        menus.sort(Comparator
+                .comparing(MealPlanMenu::getMenuDate)
+                .thenComparing(m -> m.getMealType().ordinal()));
 
         List<MealPlanMonthlyResponse.MenuDetail> menuDetails = menus.stream()
                 .map(this::toMenuDetail)
@@ -620,9 +630,16 @@ public class MealPlanService {
 
     @Transactional(readOnly = true)
     public List<MealPlanMenu> findWeeklyMenus(Long schoolId, LocalDate weekStart, LocalDate weekEnd) {
-        return mealPlanMenuRepository.findByMealPlan_SchoolIdAndMenuDateBetweenOrderByMenuDateAscMealTypeAsc(
+        List<MealPlanMenu> menus = mealPlanMenuRepository.findByMealPlan_SchoolIdAndMenuDateBetweenOrderByMenuDateAscMealTypeAsc(
                 schoolId, weekStart, weekEnd
         );
+
+        // MealType enum ordinal 기준 정렬 (LUNCH=0, DINNER=1)
+        menus.sort(Comparator
+                .comparing(MealPlanMenu::getMenuDate)
+                .thenComparing(m -> m.getMealType().ordinal()));
+
+        return menus;
     }
 
     public MealPlanWeeklyResponse toWeeklyResponse(Long schoolId, LocalDate weekStart, LocalDate weekEnd,

@@ -1,6 +1,7 @@
 package com.nutriassistant.nutriassistant_back.domain.MealPlan.DTO;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.nutriassistant.nutriassistant_back.domain.MealPlan.entity.NutritionStandard;
 import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -38,7 +39,8 @@ public class MealPlanGenerateRequest {
     @Setter
     public static class Constraints {
         @JsonProperty("nutrition_key")
-        private String nutritionKey;
+        @NotNull(message = "영양기준은 필수입니다.")
+        private NutritionStandard nutritionKey;
 
         @JsonProperty("target_price")
         @Positive(message = "목표 단가는 양수여야 합니다.")
