@@ -59,6 +59,7 @@ public class MealPlanMenuService {
                 .orElseThrow(() -> new IllegalArgumentException("MealPlan not found: " + mealPlanId));
 
         mealPlanMenuRepository.deleteByMealPlan_Id(mealPlanId);
+        mealPlanMenuRepository.flush();  // 삭제 쿼리를 즉시 실행하여 중복 키 에러 방지
 
         // 정렬: 날짜 오름차순 → 타입 오름차순
         List<JsonNode> sortedList = new ArrayList<>();

@@ -13,14 +13,14 @@ import java.util.Optional;
 public interface MealPlanMenuRepository extends JpaRepository<MealPlanMenu, Long> {
 
     /**
-     * 특정 식단표의 모든 메뉴 조회
+     * 특정 식단표의 모든 메뉴 조회 (날짜, 식사유형 순 정렬)
      */
-    List<MealPlanMenu> findByMealPlanId(Long mealPlanId);
+    List<MealPlanMenu> findByMealPlanIdOrderByMenuDateAscMealTypeAsc(Long mealPlanId);
 
     /**
-     * 특정 식단표의 모든 메뉴 조회 (alias)
+     * 특정 식단표의 모든 메뉴 조회 (alias, 날짜, 식사유형 순 정렬)
      */
-    List<MealPlanMenu> findAllByMealPlanId(Long mealPlanId);
+    List<MealPlanMenu> findAllByMealPlanIdOrderByMenuDateAscMealTypeAsc(Long mealPlanId);
 
     /**
      * 특정 식단표의 모든 메뉴 삭제
