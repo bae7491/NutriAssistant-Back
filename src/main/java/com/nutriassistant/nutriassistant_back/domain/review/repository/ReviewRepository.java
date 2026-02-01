@@ -4,6 +4,7 @@ import com.nutriassistant.nutriassistant_back.domain.review.entity.Review;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime; // [추가] LocalDateTime 임포트 필수
 import java.util.List;
 
 public interface ReviewRepository extends JpaRepository<Review, Long> {
@@ -13,4 +14,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     // 학생별 리뷰 조회 (내 리뷰 보기)
     List<Review> findAllByStudentId(Long studentId);
+
+    // [추가] 월간 리포트용: 특정 기간(월초~월말)의 리뷰 조회
+    List<Review> findAllBySchoolIdAndCreatedAtBetween(Long schoolId, LocalDateTime start, LocalDateTime end);
 }
