@@ -24,9 +24,7 @@ import org.springframework.web.client.RestClient;
 
 import java.time.LocalDate;
 import java.time.YearMonth;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -38,16 +36,11 @@ public class MonthlyOpsDocService {
     private final MonthlyOpsDocRepository monthlyOpsDocRepository;
     private final FileAttachmentRepository fileAttachmentRepository;
     private final ObjectMapper objectMapper;
-//    private final S3Uploader s3Uploader;
-
-    // [수정] WebClient 대신 RestClient 주입
     private final RestClient restClient;
-
-    // [수정] 통계 데이터 조회를 위한 Repository 주입 (주석 해제 완료)
     private final SkipMealRepository skipMealRepository;
     private final LeftoverRepository leftoverRepository;
 
-    // 1. 운영 자료 생성 (통계 조회 -> AI 분석 -> DB 저장 -> S3 파일 생성)
+    // 1. 운영 자료 생성 (통계 조회 -> AI 분석 -> DB 저장)
     @Transactional
     public MonthlyOpsDocDto.Response createMonthlyOpsDoc(MonthlyOpsDocDto.CreateRequest request) {
 
@@ -57,54 +50,66 @@ public class MonthlyOpsDocService {
             throw new IllegalArgumentException("해당 년월의 운영 자료가 이미 존재합니다.");
         }
 
-        // 1-2. 날짜 범위 계산 (예: 2026년 1월 1일 ~ 1월 31일)
+        // 1-2. 날짜 범위 계산
         YearMonth yearMonth = YearMonth.of(request.getYear(), request.getMonth());
         LocalDate startDate = yearMonth.atDay(1);
         LocalDate endDate = yearMonth.atEndOfMonth();
 
-        // 1-3. [재료 준비] DB에서 실제 통계 데이터 조회
-        // (MetricsService에 구현된 로직을 활용하거나, Repository를 직접 호출)
-        // 여기서는 Repository를 통해 해당 기간의 모든 데이터를 가져옵니다.
-        List<SkipMeal> skippingStats = skipMealRepository.findBySchoolIdAndMealTypeAndDateBetweenOrderByDateAsc(
+        // 1-3. DB에서 통계 데이터 조회
+        log.info("📊 통계 데이터 조회 시작: {}년 {}월", request.getYear(), request.getMonth());
+
+        // 중식 데이터
+        List<SkipMeal> lunchSkips = skipMealRepository.findBySchoolIdAndMealTypeAndDateBetweenOrderByDateAsc(
                 request.getSchool_id(), "LUNCH", startDate, endDate);
-        // 주의: 점심(LUNCH)/저녁(DINNER) 구분이 필요하다면 로직 추가 필요. 현재는 예시로 LUNCH만 조회하거나 전체 조회
-
-        List<Leftover> leftoverStats = leftoverRepository.findBySchoolIdAndMealTypeAndDateBetweenOrderByDateAsc(
+        List<Leftover> lunchLeftovers = leftoverRepository.findBySchoolIdAndMealTypeAndDateBetweenOrderByDateAsc(
                 request.getSchool_id(), "LUNCH", startDate, endDate);
 
+        // 석식 데이터
+        List<SkipMeal> dinnerSkips = skipMealRepository.findBySchoolIdAndMealTypeAndDateBetweenOrderByDateAsc(
+                request.getSchool_id(), "DINNER", startDate, endDate);
+        List<Leftover> dinnerLeftovers = leftoverRepository.findBySchoolIdAndMealTypeAndDateBetweenOrderByDateAsc(
+                request.getSchool_id(), "DINNER", startDate, endDate);
 
-        // 1-4. [분석 요청] 통계 데이터를 포함하여 FastAPI로 전송 (RestClient 사용)
+        log.info("   중식 결식: {}건, 잔반: {}건", lunchSkips.size(), lunchLeftovers.size());
+        log.info("   석식 결식: {}건, 잔반: {}건", dinnerSkips.size(), dinnerLeftovers.size());
+
+        // 1-4. FastAPI 요청 페이로드 구성
+        Map<String, Object> fastApiPayload = buildFastApiPayload(
+                request,
+                lunchSkips, lunchLeftovers,
+                dinnerSkips, dinnerLeftovers
+        );
+
+        // 1-5. FastAPI 호출 (수정된 경로)
         Map<String, Object> analyzedResult;
         try {
-            log.info("FastAPI 분석 요청 시작: SchoolID={}, Date={}", request.getSchool_id(), yearMonth);
+            log.info("🤖 FastAPI 분석 요청 시작");
 
             analyzedResult = restClient.post()
-                    .uri("/analyze/monthly-report") // Config에 BaseURL(localhost:8000) 설정됨
-                    .body(Map.of(
-                            "school_id", request.getSchool_id(),
-                            "year", request.getYear(),
-                            "month", request.getMonth(),
-                            "skipping_stats", skippingStats, // DB에서 가져온 리스트
-                            "leftover_stats", leftoverStats  // DB에서 가져온 리스트
-                    ))
+                    .uri("/reports/monthly")  // ✅ 올바른 경로
+                    .body(fastApiPayload)
                     .retrieve()
-                    .body(new ParameterizedTypeReference<Map<String, Object>>() {}); // Map으로 응답 받기
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
 
-            log.info("AI 통합 분석 완료");
+            log.info("✅ AI 분석 완료");
+
         } catch (Exception e) {
-            log.error("AI 분석 요청 실패", e);
-            throw new RuntimeException("분석 서버 오류로 인해 리포트를 생성할 수 없습니다.");
+            log.error("❌ FastAPI 분석 요청 실패", e);
+            throw new RuntimeException("AI 분석 서버 오류: " + e.getMessage());
         }
 
-        // 1-5. [결과 변환] Map -> JSON String
+        // 1-6. 결과 저장
         String reportContentJson;
         try {
-            reportContentJson = objectMapper.writeValueAsString(analyzedResult);
+            // FastAPI 응답에서 data 부분 추출
+            Object dataObj = analyzedResult.get("data");
+            reportContentJson = objectMapper.writeValueAsString(dataObj);
         } catch (Exception e) {
-            throw new RuntimeException("JSON 변환 오류", e);
+            log.error("❌ JSON 변환 실패", e);
+            throw new RuntimeException("JSON 변환 오류: " + e.getMessage());
         }
 
-        // 1-6. [DB 저장] MonthlyOpsDoc 테이블 (화면 출력용 JSON 저장)
+        // 1-7. DB 저장
         MonthlyOpsDoc doc = MonthlyOpsDoc.builder()
                 .schoolId(request.getSchool_id())
                 .title(request.getTitle())
@@ -115,38 +120,78 @@ public class MonthlyOpsDocService {
                 .build();
 
         MonthlyOpsDoc savedDoc = monthlyOpsDocRepository.save(doc);
+        log.info("💾 리포트 DB 저장 완료: ID={}", savedDoc.getId());
 
-        // 1-7. [S3 업로드] JSON 내용을 파일로 만들어 S3 저장 (다운로드용)
-//        try {
-//            String s3FileName = String.format("report_%d_%d_%02d.json",
-//                    request.getSchool_id(), request.getYear(), request.getMonth());
-//
-//            String s3Url = s3Uploader.uploadByte(
-//                    reportContentJson.getBytes(StandardCharsets.UTF_8),
-//                    s3FileName
-//            );
-//
-//            // 1-8. [파일 DB 저장] file_attachments 테이블에 파일 정보 기록
-//            FileAttachment jsonFile = FileAttachment.builder()
-//                    .relatedType("OPS")
-//                    .relatedId(savedDoc.getId())
-//                    .fileName(s3FileName)
-//                    .s3Path(s3Url)
-//                    .fileType("application/json")
-//                    .build();
-//
-//            fileAttachmentRepository.save(jsonFile);
-//
-//        } catch (Exception e) {
-//            log.error("S3 파일 업로드 실패 (DB 저장은 완료됨)", e);
-//        }
-
-        // 1-9. 최종 응답 반환
+        // 1-8. 응답 반환
         return getMonthlyOpsDocDetail(savedDoc.getId());
     }
 
+    /**
+     * FastAPI 요청 페이로드 구성
+     */
+    private Map<String, Object> buildFastApiPayload(
+            MonthlyOpsDocDto.CreateRequest request,
+            List<SkipMeal> lunchSkips, List<Leftover> lunchLeftovers,
+            List<SkipMeal> dinnerSkips, List<Leftover> dinnerLeftovers) {
+
+        Map<String, Object> payload = new HashMap<>();
+
+        // 기본 정보
+        payload.put("userName", "관리자");  // TODO: 실제 사용자명 매핑
+        payload.put("year", request.getYear());
+        payload.put("month", request.getMonth());
+        payload.put("targetGroup", "");  // TODO: 학교 급식 대상 그룹 매핑
+
+        // dailyInfo 구성 (결식 + 잔반 데이터)
+        List<Map<String, Object>> dailyInfoList = new ArrayList<>();
+
+        // 중식 데이터 추가
+        for (int i = 0; i < lunchSkips.size(); i++) {
+            SkipMeal skip = lunchSkips.get(i);
+            Leftover leftover = i < lunchLeftovers.size() ? lunchLeftovers.get(i) : null;
+
+            Map<String, Object> dailyInfo = new HashMap<>();
+            dailyInfo.put("date", skip.getDate().toString());
+            dailyInfo.put("mealType", "중식");
+            dailyInfo.put("servedProxy", skip.getTotalStudents() - skip.getSkippedCount());
+            dailyInfo.put("missedProxy", skip.getSkippedCount());
+            dailyInfo.put("leftoverKg", leftover != null ? leftover.getAmountKg() : 0.0);
+
+            dailyInfoList.add(dailyInfo);
+        }
+
+        // 석식 데이터 추가
+        for (int i = 0; i < dinnerSkips.size(); i++) {
+            SkipMeal skip = dinnerSkips.get(i);
+            Leftover leftover = i < dinnerLeftovers.size() ? dinnerLeftovers.get(i) : null;
+
+            Map<String, Object> dailyInfo = new HashMap<>();
+            dailyInfo.put("date", skip.getDate().toString());
+            dailyInfo.put("mealType", "석식");
+            dailyInfo.put("servedProxy", skip.getTotalStudents() - skip.getSkippedCount());
+            dailyInfo.put("missedProxy", skip.getSkippedCount());
+            dailyInfo.put("leftoverKg", leftover != null ? leftover.getAmountKg() : 0.0);
+
+            dailyInfoList.add(dailyInfo);
+        }
+
+        payload.put("dailyInfo", dailyInfoList);
+
+        // 빈 배열로 초기화 (리뷰, 게시물 등은 나중에 추가)
+        payload.put("mealPlan", new ArrayList<>());
+        payload.put("reviews", new ArrayList<>());
+        payload.put("posts", new ArrayList<>());
+        payload.put("reviewAnalyses", new ArrayList<>());
+        payload.put("postAnalyses", new ArrayList<>());
+        payload.put("dailyAnalyses", new ArrayList<>());
+
+        return payload;
+    }
+
     // 2. 목록 조회
-    public MonthlyOpsDocDto.ListResponse getMonthlyOpsDocList(Long schoolId, Integer year, Integer month, int page, int size) {
+    public MonthlyOpsDocDto.ListResponse getMonthlyOpsDocList(
+            Long schoolId, Integer year, Integer month, int page, int size) {
+
         Pageable pageable = PageRequest.of(page - 1, size, Sort.by("id").descending());
         Page<MonthlyOpsDoc> pageResult = monthlyOpsDocRepository.findAllBySchoolId(schoolId, pageable);
 
@@ -172,7 +217,8 @@ public class MonthlyOpsDocService {
         MonthlyOpsDoc doc = monthlyOpsDocRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("해당 운영 자료를 찾을 수 없습니다."));
 
-        List<FileAttachment> attachments = fileAttachmentRepository.findAllByRelatedTypeAndRelatedId("OPS", id);
+        List<FileAttachment> attachments = fileAttachmentRepository
+                .findAllByRelatedTypeAndRelatedId("OPS", id);
 
         List<MonthlyOpsDocDto.FileResponse> files = attachments.stream()
                 .map(file -> MonthlyOpsDocDto.FileResponse.builder()
@@ -187,18 +233,22 @@ public class MonthlyOpsDocService {
         return mapToResponse(doc, files);
     }
 
-    // 매핑 헬퍼 메서드
-    private MonthlyOpsDocDto.Response mapToResponse(MonthlyOpsDoc entity, List<MonthlyOpsDocDto.FileResponse> files) {
+    // 매핑 헬퍼
+    private MonthlyOpsDocDto.Response mapToResponse(
+            MonthlyOpsDoc entity,
+            List<MonthlyOpsDocDto.FileResponse> files) {
+
         Map<String, Object> contentMap = null;
         try {
             if (entity.getReportContent() != null) {
                 contentMap = objectMapper.readValue(entity.getReportContent(), Map.class);
             }
         } catch (Exception e) {
-            log.error("JSON 파싱 실패 ID: " + entity.getId(), e);
+            log.error("JSON 파싱 실패 ID: {}", entity.getId(), e);
         }
 
-        List<MonthlyOpsDocDto.FileResponse> safeFiles = (files != null) ? files : Collections.emptyList();
+        List<MonthlyOpsDocDto.FileResponse> safeFiles =
+                (files != null) ? files : Collections.emptyList();
 
         return MonthlyOpsDocDto.Response.builder()
                 .id(entity.getId())
