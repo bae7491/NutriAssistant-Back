@@ -1,7 +1,7 @@
-package com.nutriassistant.nutriassistant_back.Auth.DTO;
+package com.nutriassistant.nutriassistant_back.domain.Auth.DTO;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.nutriassistant.nutriassistant_back.Auth.entity.Student;
+import com.nutriassistant.nutriassistant_back.domain.Auth.entity.Student;
 
 import java.time.LocalDateTime;
 

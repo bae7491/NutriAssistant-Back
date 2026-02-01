@@ -1,4 +1,4 @@
-package com.nutriassistant.nutriassistant_back.Auth.DTO;
+package com.nutriassistant.nutriassistant_back.domain.Auth.DTO;
 
 import jakarta.validation.constraints.NotBlank;
 

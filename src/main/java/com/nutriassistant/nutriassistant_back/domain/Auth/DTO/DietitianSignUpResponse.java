@@ -1,12 +1,12 @@
-package com.nutriassistant.nutriassistant_back.Auth.DTO;
+package com.nutriassistant.nutriassistant_back.domain.Auth.DTO;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.nutriassistant.nutriassistant_back.Auth.entity.Dietitian;
-import com.nutriassistant.nutriassistant_back.Auth.entity.School;
+import com.nutriassistant.nutriassistant_back.domain.Auth.entity.Dietitian;
+import com.nutriassistant.nutriassistant_back.domain.Auth.entity.School;
 
 import java.time.LocalDateTime;
 
-public class DietitianProfileResponse {
+public class DietitianSignUpResponse {
 
     @JsonProperty("dietitian_id")
     private Long dietitianId;
@@ -21,18 +21,18 @@ public class DietitianProfileResponse {
     @JsonProperty("updated_at")
     private LocalDateTime updatedAt;
 
-    private SchoolResponse school; // 없으면 null
+    private SchoolResponse school;
 
-    public DietitianProfileResponse() {}
+    public DietitianSignUpResponse() {}
 
-    public DietitianProfileResponse(Dietitian dietitian, School school) {
+    public DietitianSignUpResponse(Dietitian dietitian, School school) {
         this.dietitianId = dietitian.getId();
         this.username = dietitian.getUsername();
         this.name = dietitian.getName();
         this.phone = dietitian.getPhone();
         this.createdAt = dietitian.getCreatedAt();
         this.updatedAt = dietitian.getUpdatedAt();
-        this.school = (school == null) ? null : new SchoolResponse(school);
+        this.school = new SchoolResponse(school);
     }
 
     public Long getDietitianId() { return dietitianId; }
