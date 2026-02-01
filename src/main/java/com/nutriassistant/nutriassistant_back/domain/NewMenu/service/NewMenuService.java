@@ -141,14 +141,14 @@ public class NewMenuService {
             return false;
         }
 
-        // menu_name을 food_code로 사용 (고유 식별자)
-        String foodCode = menuName;
-
-        // 중복 체크
-        if (newFoodInfoRepository.existsByFoodCode(foodCode)) {
-            log.info("ℹ️ 이미 존재하는 메뉴: {}", foodCode);
+        // 동일한 메뉴명이 이미 존재하면 저장 건너뜀
+        if (newFoodInfoRepository.existsByFoodName(menuName)) {
+            log.info("ℹ️ 이미 존재하는 메뉴: {}", menuName);
             return false;
         }
+
+        // NEWFOOD-N 형식으로 food_code 자동 생성
+        String foodCode = generateNextFoodCode();
 
         // nutrition 객체에서 영양 정보 추출
         JsonNode nutrition = data.get("nutrition");
@@ -251,5 +251,14 @@ public class NewMenuService {
      */
     private String parseAllergens(JsonNode allergensNode) {
         return parseArrayToString(allergensNode, ", ");
+    }
+
+    /**
+     * 다음 NEWFOOD-N 코드 생성
+     */
+    private String generateNextFoodCode() {
+        Integer maxNumber = newFoodInfoRepository.findMaxFoodCodeNumber();
+        int nextNumber = (maxNumber == null) ? 1 : maxNumber + 1;
+        return "NEWFOOD-" + nextNumber;
     }
 }
