@@ -1,0 +1,21 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/nutriassistant?serverTimezone=Asia/Seoul&characterEncoding=utf8
+    username: root
+    password: Tlsekgns1!
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+
+  sql:
+    init:
+      mode: never
+
+fastapi:
+  base-url: http://localhost:8001
+  internal-token: ""   # FastAPI INTERNAL_TOKEN 쓰면 여기에 넣기
