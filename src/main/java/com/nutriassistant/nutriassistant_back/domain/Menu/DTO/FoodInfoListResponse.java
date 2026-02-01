@@ -1,4 +1,4 @@
-package com.nutriassistant.nutriassistant_back.domain.MealPlan.DTO;
+package com.nutriassistant.nutriassistant_back.domain.Menu.DTO;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;

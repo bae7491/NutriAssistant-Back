@@ -25,4 +25,6 @@ public interface FoodInfoRepository extends JpaRepository<FoodInfo, Long> {
     // 이걸 복사해서 Repository에 덮어씌우세요
     @Query(value = "SELECT * FROM food_info WHERE REPLACE(food_name, ' ', '') = REPLACE(:foodName, ' ', '') LIMIT 1", nativeQuery = true)
     Optional<FoodInfo> findByFoodNameIgnoreSpace(@Param("foodName") String foodName);
+
+    Optional<FoodInfo> findByFoodCode(String foodCode);
 }
