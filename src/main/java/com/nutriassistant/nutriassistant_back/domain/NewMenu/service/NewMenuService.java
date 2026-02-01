@@ -2,6 +2,10 @@ package com.nutriassistant.nutriassistant_back.domain.NewMenu.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nutriassistant.nutriassistant_back.domain.Board.entity.Board;
+import com.nutriassistant.nutriassistant_back.domain.NewMenu.DTO.NewFoodInfoCreateRequest;
+import com.nutriassistant.nutriassistant_back.domain.NewMenu.DTO.NewFoodInfoDeleteResponse;
+import com.nutriassistant.nutriassistant_back.domain.NewMenu.DTO.NewFoodInfoResponse;
+import com.nutriassistant.nutriassistant_back.domain.NewMenu.DTO.NewFoodInfoUpdateRequest;
 import com.nutriassistant.nutriassistant_back.domain.NewMenu.DTO.NewMenuAnalysisResponse;
 import com.nutriassistant.nutriassistant_back.domain.NewMenu.entity.NewFoodInfo;
 import com.nutriassistant.nutriassistant_back.domain.NewMenu.repository.NewFoodInfoRepository;
@@ -13,7 +17,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -260,5 +267,166 @@ public class NewMenuService {
         Integer maxNumber = newFoodInfoRepository.findMaxFoodCodeNumber();
         int nextNumber = (maxNumber == null) ? 1 : maxNumber + 1;
         return "NEWFOOD-" + nextNumber;
+    }
+
+    /**
+     * 신메뉴 직접 등록
+     */
+    public NewFoodInfoResponse createNewFoodInfo(NewFoodInfoCreateRequest request) {
+        // 중복 체크
+        if (newFoodInfoRepository.existsByFoodName(request.getName())) {
+            throw new IllegalStateException("DUPLICATE:" + request.getName());
+        }
+
+        String foodCode = generateNextFoodCode();
+
+        NewFoodInfo newFoodInfo = new NewFoodInfo();
+        newFoodInfo.setFoodCode(foodCode);
+        newFoodInfo.setFoodName(request.getName());
+        newFoodInfo.setCategory(request.getCategory());
+        newFoodInfo.setServingBasis(request.getNutritionBasis());
+        newFoodInfo.setFoodWeight(request.getServingSize());
+        newFoodInfo.setKcal(request.getKcal());
+        newFoodInfo.setCarbs(request.getCarb());
+        newFoodInfo.setProtein(request.getProt());
+        newFoodInfo.setFat(request.getFat());
+        newFoodInfo.setCalcium(request.getCalcium());
+        newFoodInfo.setIron(request.getIron());
+        newFoodInfo.setVitaminA(request.getVitaminA());
+        newFoodInfo.setThiamin(request.getThiamin());
+        newFoodInfo.setRiboflavin(request.getRiboflavin());
+        newFoodInfo.setVitaminC(request.getVitaminC());
+        newFoodInfo.setIngredients(request.getIngredientsText());
+        newFoodInfo.setRecipe(request.getRecipeText());
+
+        // 알레르기 정보 변환 (List<Integer> -> String)
+        if (request.getAllergens() != null && !request.getAllergens().isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < request.getAllergens().size(); i++) {
+                if (i > 0) sb.append(", ");
+                sb.append(request.getAllergens().get(i));
+            }
+            newFoodInfo.setAllergyInfo(sb.toString());
+        }
+
+        NewFoodInfo saved = newFoodInfoRepository.save(newFoodInfo);
+        log.info("✅ 신메뉴 등록 완료: {} ({})", saved.getFoodName(), saved.getFoodCode());
+
+        return toNewFoodInfoResponse(saved);
+    }
+
+    /**
+     * 신메뉴 삭제 (Soft Delete)
+     */
+    public NewFoodInfoDeleteResponse deleteNewFoodInfo(String newFoodId) {
+        NewFoodInfo foodInfo = newFoodInfoRepository.findByFoodCode(newFoodId)
+                .orElseThrow(() -> new IllegalArgumentException("NOT_FOUND:" + newFoodId));
+
+        // 이미 삭제된 경우
+        if (Boolean.TRUE.equals(foodInfo.getDeleted())) {
+            throw new IllegalArgumentException("NOT_FOUND:" + newFoodId);
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        foodInfo.setDeleted(true);
+        foodInfo.setDeletedAt(now);
+        newFoodInfoRepository.save(foodInfo);
+
+        log.info("✅ 신메뉴 삭제 완료: {} ({})", foodInfo.getFoodName(), foodInfo.getFoodCode());
+
+        return NewFoodInfoDeleteResponse.builder()
+                .newFoodId(newFoodId)
+                .deleted(true)
+                .deleteType("SOFT")
+                .deletedAt(now)
+                .build();
+    }
+
+    /**
+     * 신메뉴 수정
+     */
+    public NewFoodInfoResponse updateNewFoodInfo(String newMenuId, NewFoodInfoUpdateRequest request) {
+        // 기존 메뉴 조회
+        NewFoodInfo foodInfo = newFoodInfoRepository.findByFoodCode(newMenuId)
+                .orElseThrow(() -> new IllegalArgumentException("NOT_FOUND:" + newMenuId));
+
+        // 이름 변경 시 중복 체크
+        if (request.getName() != null && !request.getName().equals(foodInfo.getFoodName())) {
+            if (newFoodInfoRepository.existsByFoodName(request.getName())) {
+                throw new IllegalStateException("DUPLICATE:" + request.getName());
+            }
+            foodInfo.setFoodName(request.getName());
+        }
+
+        // 각 필드 업데이트 (null이 아닌 경우에만)
+        if (request.getCategory() != null) foodInfo.setCategory(request.getCategory());
+        if (request.getNutritionBasis() != null) foodInfo.setServingBasis(request.getNutritionBasis());
+        if (request.getServingSize() != null) foodInfo.setFoodWeight(request.getServingSize());
+        if (request.getKcal() != null) foodInfo.setKcal(request.getKcal());
+        if (request.getCarb() != null) foodInfo.setCarbs(request.getCarb());
+        if (request.getProt() != null) foodInfo.setProtein(request.getProt());
+        if (request.getFat() != null) foodInfo.setFat(request.getFat());
+        if (request.getCalcium() != null) foodInfo.setCalcium(request.getCalcium());
+        if (request.getIron() != null) foodInfo.setIron(request.getIron());
+        if (request.getVitaminA() != null) foodInfo.setVitaminA(request.getVitaminA());
+        if (request.getThiamin() != null) foodInfo.setThiamin(request.getThiamin());
+        if (request.getRiboflavin() != null) foodInfo.setRiboflavin(request.getRiboflavin());
+        if (request.getVitaminC() != null) foodInfo.setVitaminC(request.getVitaminC());
+        if (request.getIngredientsText() != null) foodInfo.setIngredients(request.getIngredientsText());
+        if (request.getRecipeText() != null) foodInfo.setRecipe(request.getRecipeText());
+
+        // 알레르기 정보 변환
+        if (request.getAllergens() != null) {
+            if (request.getAllergens().isEmpty()) {
+                foodInfo.setAllergyInfo(null);
+            } else {
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < request.getAllergens().size(); i++) {
+                    if (i > 0) sb.append(", ");
+                    sb.append(request.getAllergens().get(i));
+                }
+                foodInfo.setAllergyInfo(sb.toString());
+            }
+        }
+
+        NewFoodInfo saved = newFoodInfoRepository.save(foodInfo);
+        log.info("✅ 신메뉴 수정 완료: {} ({})", saved.getFoodName(), saved.getFoodCode());
+
+        return toNewFoodInfoResponse(saved);
+    }
+
+    private NewFoodInfoResponse toNewFoodInfoResponse(NewFoodInfo foodInfo) {
+        List<Integer> allergens = new ArrayList<>();
+        if (foodInfo.getAllergyInfo() != null && !foodInfo.getAllergyInfo().isBlank()) {
+            for (String s : foodInfo.getAllergyInfo().split(",")) {
+                try {
+                    allergens.add(Integer.parseInt(s.trim()));
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+
+        return NewFoodInfoResponse.builder()
+                .newMenuId(foodInfo.getFoodCode())
+                .name(foodInfo.getFoodName())
+                .category(foodInfo.getCategory())
+                .nutritionBasis(foodInfo.getServingBasis())
+                .servingSize(foodInfo.getFoodWeight())
+                .kcal(foodInfo.getKcal())
+                .carb(foodInfo.getCarbs())
+                .prot(foodInfo.getProtein())
+                .fat(foodInfo.getFat())
+                .calcium(foodInfo.getCalcium())
+                .iron(foodInfo.getIron())
+                .vitaminA(foodInfo.getVitaminA())
+                .thiamin(foodInfo.getThiamin())
+                .riboflavin(foodInfo.getRiboflavin())
+                .vitaminC(foodInfo.getVitaminC())
+                .ingredientsText(foodInfo.getIngredients())
+                .allergens(allergens)
+                .recipeText(foodInfo.getRecipe())
+                .createdAt(foodInfo.getCreatedAt())
+                .updatedAt(foodInfo.getUpdatedAt())
+                .build();
     }
 }

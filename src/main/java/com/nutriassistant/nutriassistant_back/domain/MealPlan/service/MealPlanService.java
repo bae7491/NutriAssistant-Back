@@ -157,7 +157,7 @@ public class MealPlanService {
         // ========================================
         // 2-1. 신메뉴 DB 조회 및 추가
         // ========================================
-        List<NewFoodInfo> newFoodInfoList = newFoodInfoRepository.findAll();
+        List<NewFoodInfo> newFoodInfoList = newFoodInfoRepository.findByDeletedFalse();
         if (!newFoodInfoList.isEmpty()) {
             List<Map<String, Object>> newMenus = newFoodInfoList.stream()
                     .map(this::convertNewFoodInfoToMap)

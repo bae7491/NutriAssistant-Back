@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -18,4 +19,6 @@ public interface NewFoodInfoRepository extends JpaRepository<NewFoodInfo, Long> 
 
     @Query(value = "SELECT MAX(CAST(SUBSTRING(food_code, 9) AS UNSIGNED)) FROM new_food_info WHERE food_code LIKE 'NEWFOOD-%'", nativeQuery = true)
     Integer findMaxFoodCodeNumber();
+
+    List<NewFoodInfo> findByDeletedFalse();
 }

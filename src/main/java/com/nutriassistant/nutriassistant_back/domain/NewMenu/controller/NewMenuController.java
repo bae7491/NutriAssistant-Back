@@ -3,20 +3,29 @@ package com.nutriassistant.nutriassistant_back.domain.NewMenu.controller;
 import com.nutriassistant.nutriassistant_back.domain.Board.entity.Board;
 import com.nutriassistant.nutriassistant_back.domain.Board.entity.CategoryType;
 import com.nutriassistant.nutriassistant_back.domain.Board.repository.BoardRepository;
+import com.nutriassistant.nutriassistant_back.domain.NewMenu.DTO.NewFoodInfoCreateRequest;
+import com.nutriassistant.nutriassistant_back.domain.NewMenu.DTO.NewFoodInfoDeleteResponse;
+import com.nutriassistant.nutriassistant_back.domain.NewMenu.DTO.NewFoodInfoResponse;
+import com.nutriassistant.nutriassistant_back.domain.NewMenu.DTO.NewFoodInfoUpdateRequest;
 import com.nutriassistant.nutriassistant_back.domain.NewMenu.DTO.NewMenuAnalysisResponse;
 import com.nutriassistant.nutriassistant_back.domain.NewMenu.service.NewMenuService;
+import com.nutriassistant.nutriassistant_back.global.ApiResponse;
 import com.nutriassistant.nutriassistant_back.global.exception.ErrorResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @RestController
-@RequestMapping("/new-menu")
 public class NewMenuController {
 
     private final BoardRepository boardRepository;
@@ -34,7 +43,7 @@ public class NewMenuController {
      * @param boardId 게시글 ID
      * @return 분석 결과
      */
-    @PostMapping("/analyze/{boardId}")
+    @PostMapping("/new-menu/analyze/{boardId}")
     public ResponseEntity<?> analyzeNewMenu(@PathVariable Long boardId) {
         log.info("🤖 신메뉴 분석 요청: boardId={}", boardId);
 
@@ -69,7 +78,7 @@ public class NewMenuController {
      * @param size 조회 개수
      * @return 신메뉴 카테고리 게시글 리스트
      */
-    @GetMapping("/internal/feedback")
+    @GetMapping("/new-menu/internal/feedback")
     public List<Board> getNewMenuFeedback(
             @RequestParam(defaultValue = "30") int days,
             @RequestParam(defaultValue = "500") int size
@@ -79,6 +88,137 @@ public class NewMenuController {
                 CategoryType.NEW_MENU,
                 since,
                 PageRequest.of(0, size)
+        );
+    }
+
+    /**
+     * 신메뉴 직접 등록
+     */
+    @PostMapping("/newfoodinfo")
+    public ResponseEntity<ApiResponse<NewFoodInfoResponse>> createNewFoodInfo(
+            @Validated @RequestBody NewFoodInfoCreateRequest request
+    ) {
+        try {
+            log.info("📝 신메뉴 등록 요청: name={}", request.getName());
+
+            NewFoodInfoResponse response = newMenuService.createNewFoodInfo(request);
+
+            return ResponseEntity.ok(
+                    ApiResponse.success("신메뉴가 생성되었습니다.", response)
+            );
+
+        } catch (IllegalStateException e) {
+            if (e.getMessage() != null && e.getMessage().startsWith("DUPLICATE:")) {
+                String menuName = e.getMessage().substring("DUPLICATE:".length());
+                log.warn("⚠️ 중복 메뉴명: {}", menuName);
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                        ApiResponse.error("이미 존재하는 메뉴입니다.",
+                                new ApiResponse.ErrorDetails("name", menuName))
+                );
+            }
+            throw e;
+
+        } catch (Exception e) {
+            log.error("❌ 신메뉴 등록 중 오류 발생: ", e);
+            String errorId = "err-" + UUID.randomUUID().toString().substring(0, 6);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ApiResponse.error("서버 내부 오류가 발생했습니다.",
+                            new ApiResponse.ErrorDetails(errorId))
+            );
+        }
+    }
+
+    /**
+     * 신메뉴 수정
+     */
+    @PatchMapping("/newfoodinfo/{newMenuId}")
+    public ResponseEntity<ApiResponse<NewFoodInfoResponse>> updateNewFoodInfo(
+            @PathVariable String newMenuId,
+            @RequestBody NewFoodInfoUpdateRequest request
+    ) {
+        try {
+            log.info("✏️ 신메뉴 수정 요청: newMenuId={}", newMenuId);
+
+            NewFoodInfoResponse response = newMenuService.updateNewFoodInfo(newMenuId, request);
+
+            return ResponseEntity.ok(
+                    ApiResponse.success("신메뉴가 수정되었습니다.", response)
+            );
+
+        } catch (IllegalArgumentException e) {
+            if (e.getMessage() != null && e.getMessage().startsWith("NOT_FOUND:")) {
+                log.warn("⚠️ 신메뉴 없음: {}", newMenuId);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ApiResponse.error("해당 신메뉴를 찾을 수 없습니다.")
+                );
+            }
+            throw e;
+
+        } catch (IllegalStateException e) {
+            if (e.getMessage() != null && e.getMessage().startsWith("DUPLICATE:")) {
+                String menuName = e.getMessage().substring("DUPLICATE:".length());
+                log.warn("⚠️ 중복 메뉴명: {}", menuName);
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                        ApiResponse.error("이미 존재하는 메뉴명입니다.",
+                                new ApiResponse.ErrorDetails("name", "duplicate"))
+                );
+            }
+            throw e;
+
+        } catch (Exception e) {
+            log.error("❌ 신메뉴 수정 중 오류 발생: ", e);
+            String errorId = "err-" + UUID.randomUUID().toString().substring(0, 6);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ApiResponse.error("서버 내부 오류가 발생했습니다.",
+                            new ApiResponse.ErrorDetails(errorId))
+            );
+        }
+    }
+
+    /**
+     * 신메뉴 삭제
+     */
+    @DeleteMapping("/newfoodinfo/{newFoodId}")
+    public ResponseEntity<ApiResponse<NewFoodInfoDeleteResponse>> deleteNewFoodInfo(
+            @PathVariable String newFoodId
+    ) {
+        try {
+            log.info("🗑️ 신메뉴 삭제 요청: newFoodId={}", newFoodId);
+
+            NewFoodInfoDeleteResponse response = newMenuService.deleteNewFoodInfo(newFoodId);
+
+            return ResponseEntity.ok(
+                    ApiResponse.success("신메뉴가 삭제되었습니다.", response)
+            );
+
+        } catch (IllegalArgumentException e) {
+            if (e.getMessage() != null && e.getMessage().startsWith("NOT_FOUND:")) {
+                log.warn("⚠️ 신메뉴 없음: {}", newFoodId);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ApiResponse.error("해당 신메뉴를 찾을 수 없습니다.")
+                );
+            }
+            throw e;
+
+        } catch (Exception e) {
+            log.error("❌ 신메뉴 삭제 중 오류 발생: ", e);
+            String errorId = "err-" + UUID.randomUUID().toString().substring(0, 6);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ApiResponse.error("서버 내부 오류가 발생했습니다.",
+                            new ApiResponse.ErrorDetails(errorId))
+            );
+        }
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiResponse<Void>> handleValidationException(MethodArgumentNotValidException ex) {
+        FieldError fieldError = ex.getBindingResult().getFieldError();
+        String field = fieldError != null ? fieldError.getField() : "unknown";
+        String reason = fieldError != null ? fieldError.getDefaultMessage() : "invalid";
+
+        return ResponseEntity.badRequest().body(
+                ApiResponse.error("요청값 검증에 실패했습니다.",
+                        new ApiResponse.ErrorDetails(field, reason))
         );
     }
 }
