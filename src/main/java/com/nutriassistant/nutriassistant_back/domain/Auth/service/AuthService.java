@@ -1,17 +1,16 @@
-package com.nutriassistant.nutriassistant_back.Auth.service;
+package com.nutriassistant.nutriassistant_back.domain.Auth.service;
 
-import com.nutriassistant.nutriassistant_back.Auth.DTO.SignUpRequest;
-import com.nutriassistant.nutriassistant_back.Auth.DTO.SignUpResponse;
-import com.nutriassistant.nutriassistant_back.Auth.entity.Student;
-import com.nutriassistant.nutriassistant_back.Auth.repository.StudentRepository;
+import com.nutriassistant.nutriassistant_back.domain.Auth.DTO.SignUpRequest;
+import com.nutriassistant.nutriassistant_back.domain.Auth.DTO.SignUpResponse;
+import com.nutriassistant.nutriassistant_back.domain.Auth.entity.Student;
+import com.nutriassistant.nutriassistant_back.domain.Auth.repository.StudentRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-import com.nutriassistant.nutriassistant_back.Auth.DTO.PasswordChangeRequest;
-import com.nutriassistant.nutriassistant_back.Auth.DTO.StudentUpdateRequest;
-import org.springframework.http.HttpStatus;
+import com.nutriassistant.nutriassistant_back.domain.Auth.DTO.PasswordChangeRequest;
+import com.nutriassistant.nutriassistant_back.domain.Auth.DTO.StudentUpdateRequest;
 
 @Service
 public class AuthService {

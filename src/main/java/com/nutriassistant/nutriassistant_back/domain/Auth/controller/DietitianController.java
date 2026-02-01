@@ -1,13 +1,13 @@
-package com.nutriassistant.nutriassistant_back.Auth.controller;
+package com.nutriassistant.nutriassistant_back.domain.Auth.controller;
 
-import com.nutriassistant.nutriassistant_back.Auth.DTO.DietitianProfileResponse;
-import com.nutriassistant.nutriassistant_back.Auth.DTO.DietitianSignUpRequest;
-import com.nutriassistant.nutriassistant_back.Auth.DTO.DietitianSignUpResponse;
-import com.nutriassistant.nutriassistant_back.Auth.DTO.DietitianUpdateRequest;
-import com.nutriassistant.nutriassistant_back.Auth.DTO.PasswordChangeRequest;
-import com.nutriassistant.nutriassistant_back.Auth.DTO.SchoolRequest;
-import com.nutriassistant.nutriassistant_back.Auth.DTO.SchoolResponse;
-import com.nutriassistant.nutriassistant_back.Auth.service.DietitianService;
+import com.nutriassistant.nutriassistant_back.domain.Auth.DTO.DietitianProfileResponse;
+import com.nutriassistant.nutriassistant_back.domain.Auth.DTO.DietitianSignUpRequest;
+import com.nutriassistant.nutriassistant_back.domain.Auth.DTO.DietitianSignUpResponse;
+import com.nutriassistant.nutriassistant_back.domain.Auth.DTO.DietitianUpdateRequest;
+import com.nutriassistant.nutriassistant_back.domain.Auth.DTO.PasswordChangeRequest;
+import com.nutriassistant.nutriassistant_back.domain.Auth.DTO.SchoolRequest;
+import com.nutriassistant.nutriassistant_back.domain.Auth.DTO.SchoolResponse;
+import com.nutriassistant.nutriassistant_back.domain.Auth.service.DietitianService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

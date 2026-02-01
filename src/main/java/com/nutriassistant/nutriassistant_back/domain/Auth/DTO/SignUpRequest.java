@@ -1,4 +1,4 @@
-package com.nutriassistant.nutriassistant_back.Auth.DTO;
+package com.nutriassistant.nutriassistant_back.domain.Auth.DTO;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;

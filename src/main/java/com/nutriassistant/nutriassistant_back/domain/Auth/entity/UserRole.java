@@ -1,4 +1,4 @@
-package com.nutriassistant.nutriassistant_back.Auth.entity;
+package com.nutriassistant.nutriassistant_back.domain.Auth.entity;
 
 public enum UserRole {
     STUDENT,
