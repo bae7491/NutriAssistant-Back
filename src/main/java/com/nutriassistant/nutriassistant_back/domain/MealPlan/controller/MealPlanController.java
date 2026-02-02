@@ -1,11 +1,15 @@
 package com.nutriassistant.nutriassistant_back.domain.MealPlan.controller;
 
+import com.nutriassistant.nutriassistant_back.domain.Auth.entity.Student;
 import com.nutriassistant.nutriassistant_back.domain.MealPlan.DTO.*;
 import com.nutriassistant.nutriassistant_back.domain.MealPlan.entity.MealPlan;
 import com.nutriassistant.nutriassistant_back.domain.MealPlan.entity.MealPlanMenu;
 import com.nutriassistant.nutriassistant_back.domain.MealPlan.entity.MealType;
+import com.nutriassistant.nutriassistant_back.domain.MealPlan.service.AllergenService;
 import com.nutriassistant.nutriassistant_back.domain.MealPlan.service.MealPlanService;
 import com.nutriassistant.nutriassistant_back.global.ApiResponse;
+import com.nutriassistant.nutriassistant_back.global.exception.ErrorResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tomcat.util.net.openssl.ciphers.Authentication;
 import org.springframework.http.HttpStatus;
@@ -21,6 +25,7 @@ import org.springframework.web.client.ResourceAccessException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -29,9 +34,11 @@ import java.util.UUID;
 public class MealPlanController {
 
     private final MealPlanService mealPlanService;
+    private final AllergenService allergenService;
 
-    public MealPlanController(MealPlanService mealPlanService) {
+    public MealPlanController(MealPlanService mealPlanService, AllergenService allergenService) {
         this.mealPlanService = mealPlanService;
+        this.allergenService = allergenService;
     }
 
     /**
@@ -438,6 +445,90 @@ public class MealPlanController {
                     ApiResponse.error(
                             "서버 내부 오류가 발생했습니다.",
                             new ApiResponse.ErrorDetails(errorId)
+                    )
+            );
+        }
+    }
+
+    /**
+     * 개별 알레르기 표시 조회
+     */
+    @GetMapping("/{studentId}/allergens")
+    public ResponseEntity<?> getStudentAllergenInfo(
+            @PathVariable String studentId,
+            HttpServletRequest request
+    ) {
+        String path = request.getRequestURI();
+
+        try {
+            // studentId 파싱
+            Long parsedStudentId;
+            try {
+                parsedStudentId = Long.parseLong(studentId);
+            } catch (NumberFormatException e) {
+                log.warn("⚠️ studentId 형식 오류: {}", studentId);
+                return ResponseEntity.badRequest().body(
+                        ErrorResponse.of(
+                                400,
+                                "BAD_REQUEST",
+                                "ALLERGEN_001",
+                                "studentId가 올바르지 않습니다.",
+                                path,
+                                Map.of("field", "studentId", "reason", "invalid_format")
+                        )
+                );
+            }
+
+            log.info("🔍 개별 알레르기 표시 조회 API 호출: studentId={}", parsedStudentId);
+
+            // TODO: JWT 인증 검증 (현재 미구현)
+            // 인증 실패 시 401 반환
+            // if (!isAuthenticated(authentication)) {
+            //     return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+            //             ErrorResponse.of(401, "UNAUTHORIZED", "AUTH_001", "인증 토큰이 유효하지 않습니다.", path)
+            //     );
+            // }
+
+            // TODO: 권한 검증 (현재 미구현)
+            // 권한 없음 시 403 반환
+            // if (!hasPermission(authentication, parsedStudentId)) {
+            //     return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
+            //             ErrorResponse.of(403, "FORBIDDEN", "AUTH_103", "해당 학생의 알레르기 정보를 조회할 권한이 없습니다.", path)
+            //     );
+            // }
+
+            return allergenService.findStudentById(parsedStudentId)
+                    .<ResponseEntity<?>>map(student -> {
+                        AllergenInfoResponse response = allergenService.toAllergenInfoResponse(student);
+                        return ResponseEntity.ok(
+                                ApiResponse.success("개별 알레르기 표시 조회 성공", response)
+                        );
+                    })
+                    .orElseGet(() -> {
+                        log.warn("⚠️ 학생을 찾을 수 없음: studentId={}", parsedStudentId);
+                        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                                ErrorResponse.of(
+                                        404,
+                                        "NOT_FOUND",
+                                        "ALLERGEN_404",
+                                        "해당 학생을 찾을 수 없습니다.",
+                                        path
+                                )
+                        );
+                    });
+
+        } catch (Exception e) {
+            log.error("❌ 예상치 못한 오류 발생: ", e);
+            String errorId = "err-" + UUID.randomUUID().toString().substring(0, 6);
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ErrorResponse.of(
+                            500,
+                            "INTERNAL_SERVER_ERROR",
+                            "SYS_001",
+                            "서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+                            path,
+                            Map.of("error_id", errorId)
                     )
             );
         }
