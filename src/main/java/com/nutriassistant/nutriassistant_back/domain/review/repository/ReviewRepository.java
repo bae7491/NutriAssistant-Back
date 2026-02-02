@@ -17,4 +17,6 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     // [추가] 월간 리포트용: 특정 기간(월초~월말)의 리뷰 조회
     List<Review> findAllBySchoolIdAndCreatedAtBetween(Long schoolId, LocalDateTime start, LocalDateTime end);
+
+    List<Review> findBySchoolIdAndCreatedAtBetween(Long schoolId, LocalDateTime startOfDay, LocalDateTime endOfDay);
 }
