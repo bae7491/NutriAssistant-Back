@@ -9,23 +9,30 @@ import com.nutriassistant.nutriassistant_back.domain.metrics.entity.SkipMeal;
 import com.nutriassistant.nutriassistant_back.domain.metrics.repository.LeftoverRepository;
 import com.nutriassistant.nutriassistant_back.domain.metrics.repository.SkipMealRepository;
 
-// [수정 1] 새로 만든 패키지의 Entity, Repository, DTO import
+// [Update] Imports for review analysis entities and repositories from the new package 'reviewanalysis'
 import com.nutriassistant.nutriassistant_back.domain.reviewanalysis.entity.ReviewAnalysis;
 import com.nutriassistant.nutriassistant_back.domain.reviewanalysis.repository.ReviewAnalysisRepository;
 import com.nutriassistant.nutriassistant_back.domain.reviewanalysis.dto.FastApiDto;
 
-// [추가] 리뷰 원본을 가져오기 위해 필요
+// [Add] Imports for fetching raw review data from the 'review' domain
 import com.nutriassistant.nutriassistant_back.domain.review.repository.ReviewRepository;
 import com.nutriassistant.nutriassistant_back.domain.review.entity.Review;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;          // Added for pagination
+import org.springframework.data.domain.PageRequest;   // Added for creating page requests
+import org.springframework.data.domain.Pageable;      // Added for pagination interface
+import org.springframework.data.domain.Sort;          // Added for sorting
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList; // Added
+import java.util.Arrays; // Added
+import java.util.Collections; // Added
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -39,10 +46,10 @@ public class MetricsService {
     private final SkipMealRepository skipMealRepository;
     private final LeftoverRepository leftoverRepository;
 
-    // [수정] 새로 만든 Repository 사용
+    // [Update] Inject repository for accessing analyzed review data (statistics)
     private final ReviewAnalysisRepository reviewAnalysisRepository;
 
-    // [추가] 분석할 리뷰 원본 데이터를 가져오기 위해 필요
+    // [Add] Inject repository for accessing raw review data (lists)
     private final ReviewRepository reviewRepository;
 
     private final RestClient restClient;
@@ -50,14 +57,15 @@ public class MetricsService {
 
 
     // =================================================================================
-    // 1. 결식률 (Skip Meal) 로직
+    // 1. Skip Meal Logic (결식률 로직)
     // =================================================================================
-    // (기존 코드 유지)
+
+    // Registers daily skip meal data. Throws exception if data already exists for the date.
     @Transactional
     public SkipMealDto.Response registerSkipMeal(SkipMealDto.RegisterRequest request) {
         if (skipMealRepository.existsBySchoolIdAndDateAndMealType(
                 request.getSchool_id(), request.getDate(), request.getMeal_type())) {
-            throw new IllegalArgumentException("이미 해당 날짜의 결식 데이터가 존재합니다.");
+            throw new IllegalArgumentException("Skip meal data already exists for this date.");
         }
 
         SkipMeal skipMeal = SkipMeal.builder()
@@ -71,10 +79,11 @@ public class MetricsService {
         return mapToSkipMealResponse(skipMealRepository.save(skipMeal));
     }
 
+    // Updates existing skip meal data.
     @Transactional
     public SkipMealDto.Response updateSkipMeal(SkipMealDto.UpdateRequest request) {
         SkipMeal skipMeal = skipMealRepository.findById(request.getId())
-                .orElseThrow(() -> new IllegalArgumentException("데이터를 찾을 수 없습니다."));
+                .orElseThrow(() -> new IllegalArgumentException("Data not found."));
 
         SkipMeal updated = SkipMeal.builder()
                 .id(skipMeal.getId())
@@ -89,6 +98,7 @@ public class MetricsService {
         return mapToSkipMealResponse(skipMealRepository.save(updated));
     }
 
+    // Retrieves skip meal data for a specific day.
     public SkipMealDto.Response getDailySkipMeal(Long schoolId, String mealType, LocalDate date) {
         SkipMeal skipMeal = skipMealRepository.findBySchoolIdAndDateAndMealType(schoolId, date, mealType)
                 .orElse(null);
@@ -97,6 +107,7 @@ public class MetricsService {
         return mapToSkipMealResponse(skipMeal);
     }
 
+    // Retrieves skip meal statistics for a specific period (e.g., last 7 days, last 30 days).
     public SkipMealDto.PeriodResponse getSkipMealStats(Long schoolId, String mealType, LocalDate start, LocalDate end) {
         List<SkipMeal> list = skipMealRepository.findBySchoolIdAndMealTypeAndDateBetweenOrderByDateAsc(
                 schoolId, mealType, start, end);
@@ -118,6 +129,7 @@ public class MetricsService {
                 .build();
     }
 
+    // Helper method to convert SkipMeal entity to DTO.
     private SkipMealDto.Response mapToSkipMealResponse(SkipMeal entity) {
         double rate = (entity.getTotalStudents() == 0) ? 0 :
                 (double) entity.getSkippedCount() / entity.getTotalStudents() * 100;
@@ -135,14 +147,15 @@ public class MetricsService {
 
 
     // =================================================================================
-    // 2. 잔반률 (Leftover) 로직
+    // 2. Leftover Logic (잔반률 로직)
     // =================================================================================
-    // (기존 코드 유지)
+
+    // Registers daily leftover data.
     @Transactional
     public LeftoverDto.Response registerLeftover(LeftoverDto.RegisterRequest request) {
         if (leftoverRepository.existsBySchoolIdAndDateAndMealType(
                 request.getSchool_id(), request.getDate(), request.getMeal_type())) {
-            throw new IllegalArgumentException("이미 해당 날짜의 잔반 데이터가 존재합니다.");
+            throw new IllegalArgumentException("Leftover data already exists for this date.");
         }
 
         Leftover leftover = Leftover.builder()
@@ -155,16 +168,18 @@ public class MetricsService {
         return mapToLeftoverResponse(leftoverRepository.save(leftover));
     }
 
+    // Updates existing leftover data.
     @Transactional
     public LeftoverDto.Response updateLeftover(LeftoverDto.UpdateRequest request) {
         Leftover leftover = leftoverRepository.findById(request.getId())
-                .orElseThrow(() -> new IllegalArgumentException("데이터를 찾을 수 없습니다."));
+                .orElseThrow(() -> new IllegalArgumentException("Data not found."));
 
         leftover.update(request.getAmount_kg());
 
         return mapToLeftoverResponse(leftover);
     }
 
+    // Retrieves leftover data for a specific day.
     public LeftoverDto.Response getDailyLeftover(Long schoolId, String mealType, LocalDate date) {
         Leftover leftover = leftoverRepository.findBySchoolIdAndDateAndMealType(schoolId, date, mealType)
                 .orElse(null);
@@ -173,6 +188,7 @@ public class MetricsService {
         return mapToLeftoverResponse(leftover);
     }
 
+    // Retrieves leftover statistics for a specific period.
     public LeftoverDto.PeriodResponse getLeftoverStats(Long schoolId, String mealType, LocalDate start, LocalDate end) {
         List<Leftover> list = leftoverRepository.findBySchoolIdAndMealTypeAndDateBetweenOrderByDateAsc(
                 schoolId, mealType, start, end);
@@ -194,6 +210,7 @@ public class MetricsService {
                 .build();
     }
 
+    // Helper method to convert Leftover entity to DTO.
     private LeftoverDto.Response mapToLeftoverResponse(Leftover entity) {
         return LeftoverDto.Response.builder()
                 .id(entity.getId())
@@ -206,69 +223,149 @@ public class MetricsService {
 
 
     // =================================================================================
-    // 3. 만족도 (Satisfaction) 로직 - [전면 수정]
+    // 3. Satisfaction Logic (만족도 로직) - Updated for 5 endpoints
     // =================================================================================
 
-    // [수정] DB 구조가 '일일 요약(Counts)' 저장 방식으로 바뀌었으므로,
-    // 기간 조회 시 각 날짜의 positiveCount, negativeCount를 합산해야 합니다.
+    // 3-1. Satisfaction Count Summary (Last 30 days)
+    // Aggregates positive/negative counts from daily analysis data (ReviewAnalysis).
     public SatisfactionDto.CountResponse getSatisfactionCount(Long schoolId, int days) {
-        LocalDateTime end = LocalDateTime.now();
-        LocalDateTime start = end.minusDays(days);
+        LocalDate end = LocalDate.now();
+        LocalDate start = end.minusDays(days);
 
-        // TODO: Repository에 날짜 범위로 List<ReviewAnalysis>를 가져오는 메서드가 필요합니다.
-        // 현재는 임시로 findAll을 쓰거나, Repository에 'findBySchoolIdAndTargetYmBetween' 같은 메서드를 만들어야 정확합니다.
-        // 여기서는 기존 Repository 코드를 최대한 활용하여 구현합니다.
+        List<ReviewAnalysis> list = getAnalysisListByPeriod(schoolId, start, end);
 
-        // 1. 해당 학교의 전체 데이터를 가져와서 기간 필터링 (Repository 메서드가 부족할 경우의 차선책)
-        // (가장 좋은 건 Repository에 findBySchoolIdAndTargetYmBetween을 만드는 것입니다)
-        List<ReviewAnalysis> analysisList = reviewAnalysisRepository.findBySchoolId(schoolId);
-
-        long positive = 0;
-        long negative = 0;
-
-        // 문자열 날짜 비교를 위해 변환
-        String startYm = start.toLocalDate().toString();
-        String endYm = end.toLocalDate().toString();
-
-        for (ReviewAnalysis analysis : analysisList) {
-            String targetYm = analysis.getTargetYm();
-            // 날짜 범위 체크 (문자열 비교)
-            if (targetYm.compareTo(startYm) >= 0 && targetYm.compareTo(endYm) <= 0) {
-                // Null 체크 후 합산
-                positive += (analysis.getPositiveCount() != null) ? analysis.getPositiveCount() : 0;
-                negative += (analysis.getNegativeCount() != null) ? analysis.getNegativeCount() : 0;
-            }
-        }
-
-        long total = positive + negative;
+        long pos = list.stream().mapToLong(a -> a.getPositiveCount() == null ? 0 : a.getPositiveCount()).sum();
+        long neg = list.stream().mapToLong(a -> a.getNegativeCount() == null ? 0 : a.getNegativeCount()).sum();
+        long total = pos + neg;
 
         return SatisfactionDto.CountResponse.builder()
-                .period(SatisfactionDto.Period.builder().start_date(start.toLocalDate()).end_date(end.toLocalDate()).build())
+                .period(SatisfactionDto.Period.builder().start_date(start).end_date(end).build())
                 .school_id(schoolId)
                 .total_count(total)
-                .positive_count(positive)
-                .negative_count(negative)
-                .neutral_count(0L) // 현재 구조상 중립은 계산하지 않음 (필요 시 로직 추가)
+                .positive_count(pos)
+                .negative_count(neg)
+                .neutral_count(0L) // Neutral sentiment is not currently used
                 .build();
     }
 
-    // [수정] 일일 분석 실행 로직 (FastAPI 연동 핵심)
+    // 3-2. Satisfaction Batch List (Last 30 days)
+    // Returns a list of daily analysis summaries (batches).
+    public SatisfactionDto.BatchListResponse getSatisfactionBatchList(Long schoolId, int days, int page, int size) {
+        LocalDate end = LocalDate.now();
+        LocalDate start = end.minusDays(days);
+
+        List<ReviewAnalysis> list = getAnalysisListByPeriod(schoolId, start, end);
+
+        // In-memory pagination (since ReviewAnalysis might not support complex DB filtering easily)
+        int totalItems = list.size();
+        int totalPages = (int) Math.ceil((double) totalItems / size);
+        int fromIndex = (page - 1) * size;
+        int toIndex = Math.min(fromIndex + size, totalItems);
+
+        List<ReviewAnalysis> pagedList = Collections.emptyList();
+        if (fromIndex < totalItems) {
+            pagedList = list.subList(fromIndex, toIndex);
+        }
+
+        List<SatisfactionDto.BatchInfo> batches = pagedList.stream()
+                .map(a -> SatisfactionDto.BatchInfo.builder()
+                        .batch_id("batch-" + a.getId())
+                        .date(LocalDate.parse(a.getTargetYm()))
+                        .generated_at(a.getCreatedAt())
+                        .model_version("sent-v1.2.0-lightml") // Example value
+                        .total_reviews((a.getPositiveCount() == null ? 0 : a.getPositiveCount()) + (a.getNegativeCount() == null ? 0 : a.getNegativeCount()))
+                        .positive_count(a.getPositiveCount())
+                        .negative_count(a.getNegativeCount())
+                        .average_rating(4.2) // Placeholder value
+                        .build())
+                .collect(Collectors.toList());
+
+        return SatisfactionDto.BatchListResponse.builder()
+                .period(SatisfactionDto.Period.builder().start_date(start).end_date(end).build())
+                .school_id(schoolId)
+                .batches(batches)
+                .pagination(SatisfactionDto.Pagination.builder()
+                        .current_page(page)
+                        .total_pages(totalPages)
+                        .total_items((long) totalItems)
+                        .page_size(size)
+                        .build())
+                .build();
+    }
+
+    // 3-3 & 3-4. Sentiment Count (Positive/Negative)
+    // Counts reviews with a specific sentiment (POSITIVE or NEGATIVE) within a period.
+    public SatisfactionDto.LabelCountResponse getSentimentCount(Long schoolId, String sentiment, LocalDate start, LocalDate end) {
+        List<ReviewAnalysis> list = getAnalysisListByPeriod(schoolId, start, end);
+        long count = 0;
+
+        if ("POSITIVE".equalsIgnoreCase(sentiment)) {
+            count = list.stream().mapToLong(a -> a.getPositiveCount() == null ? 0 : a.getPositiveCount()).sum();
+        } else {
+            count = list.stream().mapToLong(a -> a.getNegativeCount() == null ? 0 : a.getNegativeCount()).sum();
+        }
+
+        return SatisfactionDto.LabelCountResponse.builder()
+                .school_id(schoolId)
+                .sentiment_label(sentiment)
+                .count(count)
+                .period(SatisfactionDto.Period.builder().start_date(start).end_date(end).build())
+                .build();
+    }
+
+    // 3-5. Satisfaction Review List (with Pagination)
+    // Retrieves a paginated list of individual reviews. Resolves 404 error.
+    public SatisfactionDto.ReviewListResponse getSatisfactionReviews(Long schoolId, String batchId, LocalDate start, LocalDate end, String sentiment, int page, int size) {
+        // Create pagination object (0-indexed page, sorted by creation date descending)
+        Pageable pageable = PageRequest.of(page - 1, size, Sort.by("createdAt").descending());
+
+        // Fetch paginated reviews from DB
+        Page<Review> reviewPage = reviewRepository.findBySchoolId(schoolId, pageable);
+
+        // Map Review entities to DTOs
+        List<SatisfactionDto.ReviewDetail> details = reviewPage.getContent().stream()
+                .map(r -> SatisfactionDto.ReviewDetail.builder()
+                        .review_id("R-" + r.getId())
+                        .batch_id(batchId != null ? batchId : "batch-unknown")
+                        .school_id(r.getSchoolId())
+                        .meal_type("LUNCH")
+                        .date(r.getCreatedAt().toLocalDate())
+                        .rating_5(r.getRating().doubleValue())
+                        .sentiment_label("POSITIVE") // Placeholder, integrate actual sentiment later
+                        .sentiment_score(0.752)
+                        .aspect_tags(Arrays.asList("Taste", "Rice")) // Placeholder tags
+                        .evidence_phrases(Arrays.asList(r.getContent()))
+                        .issue_flags(new ArrayList<>())
+                        .build())
+                .collect(Collectors.toList());
+
+        // Create pagination metadata
+        return SatisfactionDto.ReviewListResponse.builder()
+                .reviews(details)
+                .pagination(SatisfactionDto.Pagination.builder()
+                        .current_page(page)
+                        .total_pages(reviewPage.getTotalPages())
+                        .total_items(reviewPage.getTotalElements())
+                        .page_size(size)
+                        .build())
+                .build();
+    }
+
+    // Helper method to execute daily satisfaction analysis (calls FastAPI)
     @Transactional
     public void executeDailySatisfactionAnalysis(Long schoolId, LocalDate targetDate) {
-        log.info("일일 만족도 분석 시작 - School: {}, Date: {}", schoolId, targetDate);
+        log.info("Starting daily satisfaction analysis - School: {}, Date: {}", schoolId, targetDate);
 
-        // 1. 분석할 리뷰 데이터 조회 (ReviewRepository 필요)
         LocalDateTime startOfDay = targetDate.atStartOfDay();
         LocalDateTime endOfDay = targetDate.plusDays(1).atStartOfDay();
 
         List<Review> reviews = reviewRepository.findBySchoolIdAndCreatedAtBetween(schoolId, startOfDay, endOfDay);
 
         if (reviews.isEmpty()) {
-            log.info("분석할 리뷰가 없습니다.");
+            log.info("No reviews to analyze.");
             return;
         }
 
-        // 2. FastAPI 요청 데이터 생성
         List<String> texts = reviews.stream()
                 .map(Review::getContent)
                 .collect(Collectors.toList());
@@ -280,41 +377,45 @@ public class MetricsService {
                 .build();
 
         try {
-            // 3. FastAPI 호출 (RestClient 사용)
             FastApiDto.Response response = restClient.post()
-                    .uri("/api/analyze/daily") // [주의] FastAPI 엔드포인트 경로 일치 확인
+                    .uri("/api/analyze/daily")
                     .body(requestDto)
                     .retrieve()
                     .body(FastApiDto.Response.class);
 
             if (response == null) {
-                log.error("FastAPI 응답이 비어있습니다.");
+                log.error("FastAPI response is empty.");
                 return;
             }
 
-            // 4. 결과 저장 (1건의 요약 데이터로 저장)
             ReviewAnalysis analysis = ReviewAnalysis.builder()
                     .schoolId(schoolId)
                     .targetYm(targetDate.toString())
                     .sentimentLabel(response.getSentimentLabel())
                     .sentimentScore(response.getSentimentScore())
                     .sentimentConf(response.getSentimentConf())
-                    // [중요] 개수 저장
                     .positiveCount(response.getPositiveCount())
                     .negativeCount(response.getNegativeCount())
-                    // 리스트 -> 문자열 변환
                     .aspectTags(String.join(",", response.getAspectTags()))
                     .evidencePhrases(String.join("|", response.getEvidencePhrases()))
                     .issueFlags(response.getIssueFlags())
                     .build();
 
-            // saveAll()이 아니라 save() 사용 (하루치 1건 저장)
             reviewAnalysisRepository.save(analysis);
-            log.info("일일 분석 결과 저장 완료. 긍정: {}, 부정: {}", response.getPositiveCount(), response.getNegativeCount());
+            log.info("Daily analysis saved. Positive: {}, Negative: {}", response.getPositiveCount(), response.getNegativeCount());
 
         } catch (Exception e) {
-            log.error("FastAPI 분석 요청 실패: {}", e.getMessage());
-            // 필요한 경우 예외를 다시 던지거나, 실패 상태를 DB에 기록
+            log.error("FastAPI analysis request failed: {}", e.getMessage());
         }
+    }
+
+    // Helper method to retrieve analysis data for a period
+    private List<ReviewAnalysis> getAnalysisListByPeriod(Long schoolId, LocalDate start, LocalDate end) {
+        List<ReviewAnalysis> all = reviewAnalysisRepository.findBySchoolId(schoolId);
+        String s = start.toString();
+        String e = end.toString();
+        return all.stream()
+                .filter(a -> a.getTargetYm().compareTo(s) >= 0 && a.getTargetYm().compareTo(e) <= 0)
+                .collect(Collectors.toList());
     }
 }

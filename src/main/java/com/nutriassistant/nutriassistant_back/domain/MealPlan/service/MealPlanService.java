@@ -10,6 +10,11 @@ import com.nutriassistant.nutriassistant_back.domain.MealPlan.repository.MealPla
 import com.nutriassistant.nutriassistant_back.domain.MealPlan.repository.MenuHistoryRepository;
 import com.nutriassistant.nutriassistant_back.domain.NewMenu.entity.NewFoodInfo;
 import com.nutriassistant.nutriassistant_back.domain.NewMenu.repository.NewFoodInfoRepository;
+
+// [수정 1] Report 관련 import 제거 -> MonthlyOpsDoc(운영일지) 관련 import 추가
+import com.nutriassistant.nutriassistant_back.domain.monthlyopsdoc.entity.MonthlyOpsDoc;
+import com.nutriassistant.nutriassistant_back.domain.monthlyopsdoc.service.MonthlyOpsDocService;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -38,28 +43,30 @@ public class MealPlanService {
     private final MenuHistoryRepository menuHistoryRepository;
     private final MealPlanMenuService mealPlanMenuService;
 
-    // [변경] RestTemplate -> RestClient
+    // [변경] RestTemplate 대신 최신 RestClient 사용
     private final RestClient restClient;
 
     private final ObjectMapper objectMapper;
     private final FoodInfoRepository foodInfoRepository;
     private final NewFoodInfoRepository newFoodInfoRepository;
-    private final ReportService reportService;
 
-    // --- 환경 변수 (application.yml) ---
-    // [참고] RestClientConfig에서 BaseUrl을 이미 설정했으므로 여기서는 로깅용으로만 남겨두거나 제거해도 됩니다.
+    // [수정 2] ReportService 제거하고 MonthlyOpsDocService 주입
+    // private final ReportService reportService; (삭제됨)
+    private final MonthlyOpsDocService monthlyOpsDocService;
+
+    // --- 환경 변수 ---
     @Value("${fastapi.base-url:http://localhost:8001}")
     private String fastApiBaseUrl;
 
     @Value("${fastapi.internal-token:}")
     private String internalToken;
 
-    // [변경] 생성자 주입 (RestClient)
+    // [수정 3] 생성자 주입 변경 (ReportService -> MonthlyOpsDocService)
     public MealPlanService(MealPlanRepository mealPlanRepository,
                            MealPlanMenuRepository mealPlanMenuRepository,
                            MenuHistoryRepository menuHistoryRepository,
                            MealPlanMenuService mealPlanMenuService,
-                           ReportService reportService,
+                           MonthlyOpsDocService monthlyOpsDocService, // <-- 변경됨
                            RestClient restClient,
                            ObjectMapper objectMapper,
                            FoodInfoRepository foodInfoRepository,
@@ -69,7 +76,7 @@ public class MealPlanService {
         this.mealPlanMenuRepository = mealPlanMenuRepository;
         this.menuHistoryRepository = menuHistoryRepository;
         this.mealPlanMenuService = mealPlanMenuService;
-        this.reportService = reportService;
+        this.monthlyOpsDocService = monthlyOpsDocService; // <-- 할당
         this.restClient = restClient;
         this.objectMapper = objectMapper;
         this.foodInfoRepository = foodInfoRepository;
@@ -96,7 +103,7 @@ public class MealPlanService {
         Integer month = Integer.parseInt(req.getMonth());
 
         // ========================================
-        // 1. DB에서 이전 달 리포트 조회
+        // [수정 4] DB에서 이전 달 운영 일지(MonthlyOpsDoc) 조회
         // ========================================
         JsonNode reportData = null;
 
@@ -108,17 +115,19 @@ public class MealPlanService {
             reportYear -= 1;
         }
 
-        log.info("📊 리포트 조회 시도: {}년 {}월", reportYear, reportMonth);
+        log.info("📊 운영 일지(MonthlyOpsDoc) 조회 시도: {}년 {}월", reportYear, reportMonth);
 
-        Optional<Report> reportOpt = reportService.findByYearAndMonth(
+        // [핵심 변경] reportService -> monthlyOpsDocService 호출
+        Optional<MonthlyOpsDoc> docOpt = monthlyOpsDocService.findByYearAndMonth(
                 reportYear, reportMonth
         );
 
-        if (reportOpt.isPresent()) {
-            reportData = reportService.getReportDataAsJson(reportOpt.get());
-            log.info("✅ 리포트 발견 → FastAPI로 전달 (가중치 분석 예정)");
+        if (docOpt.isPresent()) {
+            // 운영 일지 JSON 데이터 추출
+            reportData = monthlyOpsDocService.getReportDataAsJson(docOpt.get());
+            log.info("✅ 운영 일지 발견 → FastAPI로 전달 (가중치 분석 예정)");
         } else {
-            log.info("ℹ️ 리포트 없음 → 기본 가중치로 식단 생성");
+            log.info("ℹ️ 운영 일지 없음 → 기본 가중치로 식단 생성");
         }
 
         // ========================================
@@ -149,7 +158,7 @@ public class MealPlanService {
             requestBody.put("options", options);
         }
 
-        // DB에서 조회한 리포트 추가
+        // [중요] FastAPI는 여전히 "report"라는 키로 데이터를 받기를 원하므로 키 이름은 유지
         if (reportData != null) {
             requestBody.put("report", objectMapper.convertValue(reportData, Map.class));
         }
@@ -169,20 +178,19 @@ public class MealPlanService {
         // ========================================
         // 3. FastAPI 호출 (RestClient 사용)
         // ========================================
-        log.info("🚀 FastAPI 호출: /month/generate"); // 상대 경로 사용
+        log.info("🚀 FastAPI 호출: /month/generate");
 
         JsonNode fastPayload;
         try {
-            // [설명] RestClientConfig에서 baseUrl을 설정했으므로 uri()에는 뒷부분 경로만 적습니다.
             fastPayload = restClient.post()
                     .uri("/month/generate")
-                    .headers(httpHeaders -> httpHeaders.addAll(createHeaders())) // 헤더 추가
+                    .headers(httpHeaders -> httpHeaders.addAll(createHeaders()))
                     .body(requestBody)
                     .retrieve()
-                    .body(JsonNode.class); // 응답을 JsonNode로 변환
+                    .body(JsonNode.class);
         } catch (Exception e) {
             log.error("FastAPI 호출 실패", e);
-            throw new RuntimeException("식단 생성 중 AI 서버 오류 발생");
+            throw new RuntimeException("식단 생성 중 AI 서버 오류 발생: " + e.getMessage());
         }
 
         log.info("✅ FastAPI 응답 수신");
@@ -214,7 +222,6 @@ public class MealPlanService {
     public MealPlan createOrReplace(MealPlanCreateRequest req) {
         log.info("💾 DB 저장: {}년 {}월 (학교 ID: {})", req.year(), req.month(), req.schoolId());
 
-        // schoolId, year, month로 조회
         MealPlan mealPlan = mealPlanRepository.findBySchoolIdAndYearAndMonth(
                 req.schoolId(), req.year(), req.month()
         ).orElseGet(() -> {
@@ -230,7 +237,6 @@ public class MealPlanService {
 
         log.info("✅ MealPlan 저장: ID={}", savedPlan.getId());
 
-        // FastAPI 응답 구조에 맞춰 payload 구성
         JsonNode payload = objectMapper.createObjectNode()
                 .set("meals", req.menus());
 
@@ -258,7 +264,6 @@ public class MealPlanService {
         menuHistoryRepository.save(history);
     }
 
-    // HTTP 헤더 생성 (RestClient에서 사용)
     private HttpHeaders createHeaders() {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -268,7 +273,6 @@ public class MealPlanService {
         return headers;
     }
 
-    // NewFoodInfo -> Map 변환 (FastAPI 요청용)
     private Map<String, Object> convertNewFoodInfoToMap(NewFoodInfo info) {
         Map<String, Object> map = new HashMap<>();
         map.put("food_code", info.getFoodCode());
@@ -292,16 +296,12 @@ public class MealPlanService {
         return map;
     }
 
-    // ... (toResponseList, parseMenuItem, buildAllergenSummary 등의 메서드는 기존과 동일하므로 생략하지 않고 유지) ...
-    // ... [중략] 코드량이 많아 변경되지 않은 부분은 그대로 두었습니다. ...
-
     // =========================================================================
     // 4. [응답 변환] MealPlan -> MealPlanGenerateResponse 리스트 변환
     // =========================================================================
     public List<MealPlanGenerateResponse> toResponseList(MealPlan mealPlan) {
         List<MealPlanMenu> menus = mealPlanMenuRepository.findAllByMealPlanIdOrderByMenuDateAscMealTypeAsc(mealPlan.getId());
 
-        // MealType enum ordinal 기준 정렬 (LUNCH=0, DINNER=1)
         menus.sort(Comparator
                 .comparing(MealPlanMenu::getMenuDate)
                 .thenComparing(m -> m.getMealType().ordinal()));
@@ -312,7 +312,6 @@ public class MealPlanService {
     }
 
     private MealPlanGenerateResponse toResponse(MealPlanMenu menu) {
-        // 각 메뉴 항목 변환
         MealPlanGenerateResponse.MenuItem riceItem = parseMenuItem(menu.getRiceDisplay());
         MealPlanGenerateResponse.MenuItem soupItem = parseMenuItem(menu.getSoupDisplay());
         MealPlanGenerateResponse.MenuItem main1Item = parseMenuItem(menu.getMain1Display());
@@ -331,7 +330,6 @@ public class MealPlanService {
                 .dessert(dessertItem)
                 .build();
 
-        // 알레르기 요약 생성
         MealPlanGenerateResponse.AllergenSummary allergenSummary = buildAllergenSummary(
                 riceItem, soupItem, main1Item, main2Item, sideItem, kimchiItem, dessertItem
         );
@@ -411,7 +409,6 @@ public class MealPlanService {
     public MealPlanMonthlyResponse toMonthlyResponse(MealPlan mealPlan) {
         List<MealPlanMenu> menus = mealPlanMenuRepository.findByMealPlanIdOrderByMenuDateAscMealTypeAsc(mealPlan.getId());
 
-        // MealType enum ordinal 기준 정렬 (LUNCH=0, DINNER=1)
         menus.sort(Comparator
                 .comparing(MealPlanMenu::getMenuDate)
                 .thenComparing(m -> m.getMealType().ordinal()));
@@ -523,8 +520,6 @@ public class MealPlanService {
                 .build();
     }
 
-    // ... (중략: 조회 메서드들은 RestClient와 관련 없으므로 유지) ...
-
     @Transactional(readOnly = true)
     public Optional<MealPlanMenu> findByDateAndMealType(Long schoolId, LocalDate menuDate, MealType mealType) {
         return mealPlanMenuRepository.findByMealPlan_SchoolIdAndMenuDateAndMealType(schoolId, menuDate, mealType);
@@ -634,7 +629,6 @@ public class MealPlanService {
                 schoolId, weekStart, weekEnd
         );
 
-        // MealType enum ordinal 기준 정렬 (LUNCH=0, DINNER=1)
         menus.sort(Comparator
                 .comparing(MealPlanMenu::getMenuDate)
                 .thenComparing(m -> m.getMealType().ordinal()));
@@ -718,18 +712,15 @@ public class MealPlanService {
     public MealPlanAIReplaceResponse replaceMenuWithAi(Long schoolId, LocalDate date, MealType mealType) {
         log.info("🤖 AI 자동 대체 요청: schoolId={}, date={}, mealType={}", schoolId, date, mealType);
 
-        // 1. 기존 메뉴 조회
         MealPlanMenu menu = mealPlanMenuRepository.findByMealPlan_SchoolIdAndMenuDateAndMealType(
                 schoolId, date, mealType
         ).orElseThrow(() -> new IllegalArgumentException("해당 날짜의 식단표를 찾을 수 없습니다."));
 
-        // 2. FastAPI 호출 준비
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("date", date.toString());
         requestBody.put("meal_type", mealType.name());
         requestBody.put("school_id", schoolId);
 
-        // 현재 메뉴 정보 전달
         Map<String, String> currentMenus = new HashMap<>();
         currentMenus.put("rice", menu.getRiceDisplay());
         currentMenus.put("soup", menu.getSoupDisplay());
@@ -740,12 +731,10 @@ public class MealPlanService {
         currentMenus.put("dessert", menu.getDessertDisplay());
         requestBody.put("current_menus", currentMenus);
 
-        // 변경 전 메뉴 저장 (히스토리용)
         String oldMenus = buildMenuString(menu);
 
         log.info("🚀 FastAPI AI 대체 호출: /v1/menus/single:generate");
 
-        // 3. RestClient 호출
         JsonNode result;
         try {
             result = restClient.post()
@@ -761,7 +750,6 @@ public class MealPlanService {
 
         log.info("✅ FastAPI AI 응답 수신: {}", result.toString());
 
-        // 3. 메뉴 업데이트 (응답 파싱)
         if (result.has("menus") && result.get("menus").isArray()) {
             JsonNode menusArray = result.get("menus");
             if (menusArray.size() > 0) menu.setRiceDisplay(enrichWithAllergen(menusArray.get(0).asText(null)));
@@ -773,10 +761,9 @@ public class MealPlanService {
             if (menusArray.size() > 6) menu.setDessertDisplay(enrichWithAllergen(menusArray.get(6).asText(null)));
         }
 
-        // 영양 정보 및 코스트 업데이트
         if (result.has("kcal")) menu.setKcal(BigDecimal.valueOf(result.get("kcal").asDouble()));
         else if (result.has("Kcal")) menu.setKcal(BigDecimal.valueOf(result.get("Kcal").asDouble()));
-        // ... (나머지 영양소 필드도 기존과 동일하게 처리) ...
+
         if (result.has("carb")) menu.setCarb(BigDecimal.valueOf(result.get("carb").asDouble()));
         else if (result.has("Carb")) menu.setCarb(BigDecimal.valueOf(result.get("Carb").asDouble()));
 
@@ -789,18 +776,14 @@ public class MealPlanService {
         if (result.has("cost")) menu.setCost(result.get("cost").asInt());
         else if (result.has("Cost")) menu.setCost(result.get("Cost").asInt());
 
-        // AI 코멘트
         String aiComment = result.has("reason") ? result.get("reason").asText() : "AI 자동 대체";
         menu.setAiComment(aiComment);
 
-        // 4. 저장
         MealPlanMenu savedMenu = mealPlanMenuRepository.save(menu);
         log.info("✅ AI 대체 완료: menuId={}", savedMenu.getId());
 
-        // 변경 후 메뉴 (히스토리용)
         String newMenus = buildMenuString(savedMenu);
 
-        // 5. 히스토리 저장
         saveHistory(
                 date.toString(),
                 mealType.name(),
@@ -824,25 +807,21 @@ public class MealPlanService {
 
     // =========================================================================
     // 9. [수동 수정] & 10. [히스토리 조회]
-    // ... (이후 메서드들은 DB 로직만 있으므로 RestClient와 무관. 기존 코드 그대로 유지) ...
     // =========================================================================
 
     @Transactional
     public MealPlanManualUpdateResponse updateMenuManually(Long mealPlanId, Long menuId, List<String> newMenus, String reason) {
         log.info("✏️ 식단표 수동 수정 요청: mealPlanId={}, menuId={}", mealPlanId, menuId);
 
-        // 1. 메뉴 조회
         MealPlanMenu menu = mealPlanMenuRepository.findById(menuId)
                 .orElseThrow(() -> new IllegalArgumentException("해당 식단표를 찾을 수 없습니다."));
 
-        // mealPlanId 검증
         if (!menu.getMealPlan().getId().equals(mealPlanId)) {
             throw new IllegalArgumentException("해당 식단표를 찾을 수 없습니다.");
         }
 
         String oldMenus = buildMenuString(menu);
 
-        // 2. 메뉴 항목별 매핑 및 영양정보 계산
         List<String> rawMenus = new ArrayList<>();
         List<String> displayMenus = new ArrayList<>();
         Map<String, List<Integer>> byMenu = new LinkedHashMap<>();
@@ -859,13 +838,11 @@ public class MealPlanService {
 
             rawMenus.add(pureName);
 
-            // FoodInfo에서 조회
             Optional<FoodInfo> foodOpt = foodInfoRepository.findByFoodNameIgnoreSpace(pureName);
 
             if (foodOpt.isPresent()) {
                 FoodInfo food = foodOpt.get();
 
-                // 알레르기 정보 파싱
                 List<Integer> allergens = new ArrayList<>();
                 String allergyDisplay = "";
                 if (food.getAllergyInfo() != null && !food.getAllergyInfo().isEmpty()) {
@@ -881,7 +858,6 @@ public class MealPlanService {
                 byMenu.put(pureName, allergens);
                 uniqueAllergens.addAll(allergens);
 
-                // 영양 정보 누적
                 if (food.getKcal() != null) totalKcal = totalKcal.add(BigDecimal.valueOf(food.getKcal()));
                 if (food.getCarbs() != null) totalCarb = totalCarb.add(food.getCarbs());
                 if (food.getProtein() != null) totalProt = totalProt.add(food.getProtein());
@@ -892,7 +868,6 @@ public class MealPlanService {
             }
         }
 
-        // 3. 메뉴 업데이트 (7개 슬롯에 매핑)
         menu.setRiceDisplay(displayMenus.size() > 0 ? displayMenus.get(0) : null);
         menu.setSoupDisplay(displayMenus.size() > 1 ? displayMenus.get(1) : null);
         menu.setMain1Display(displayMenus.size() > 2 ? displayMenus.get(2) : null);
@@ -901,13 +876,11 @@ public class MealPlanService {
         menu.setKimchiDisplay(displayMenus.size() > 5 ? displayMenus.get(5) : null);
         menu.setDessertDisplay(displayMenus.size() > 6 ? displayMenus.get(6) : null);
 
-        // 영양 정보 업데이트
         menu.setKcal(totalKcal);
         menu.setCarb(totalCarb);
         menu.setProt(totalProt);
         menu.setFat(totalFat);
 
-        // raw_menus_json 업데이트
         try {
             menu.setRawMenusJson(objectMapper.writeValueAsString(rawMenus));
         } catch (Exception e) {
@@ -915,14 +888,11 @@ public class MealPlanService {
             menu.setRawMenusJson(rawMenus.toString());
         }
 
-        // 수정 사유 저장
         menu.setAiComment(reason);
 
-        // 4. 저장
         MealPlanMenu savedMenu = mealPlanMenuRepository.save(menu);
         log.info("✅ 수동 수정 완료: menuId={}", savedMenu.getId());
 
-        // 5. 히스토리 저장 (알레르기 정보 포함된 displayMenus 사용)
         saveHistory(
                 savedMenu.getMenuDate().toString(),
                 savedMenu.getMealType().name(),
@@ -933,7 +903,6 @@ public class MealPlanService {
                 menu.getCreatedAt()
         );
 
-        // 6. 응답 생성
         MealPlanManualUpdateResponse.AllergenSummary allergenSummary = MealPlanManualUpdateResponse.AllergenSummary.builder()
                 .uniqueAllergens(new ArrayList<>(uniqueAllergens))
                 .byMenu(byMenu)

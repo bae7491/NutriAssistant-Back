@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 
 @RestController
-@RequestMapping("/metrics")
+@RequestMapping("/metrics") // 이 컨트롤러는 '/metrics'로 시작하는 모든 주소를 담당합니다.
 @RequiredArgsConstructor
 public class MetricsController {
 
@@ -21,57 +21,43 @@ public class MetricsController {
     // 1. 결식률 (Skip Meal) API
     // =================================================================================
 
-    // [등록] 매일 결식 인원 입력
     @PostMapping("/skip-meal/daily")
     public ApiResponse<SkipMealDto.Response> registerSkipMeal(@RequestBody SkipMealDto.RegisterRequest request) {
         SkipMealDto.Response response = metricsService.registerSkipMeal(request);
         return ApiResponse.success("결식 인원 수가 등록되었습니다.", response);
     }
 
-    // [수정] 오기재 수정
     @PutMapping("/skip-meal/daily")
     public ApiResponse<SkipMealDto.Response> updateSkipMeal(@RequestBody SkipMealDto.UpdateRequest request) {
         SkipMealDto.Response response = metricsService.updateSkipMeal(request);
         return ApiResponse.success("결식 인원 수가 수정되었습니다.", response);
     }
 
-    // [추가] 어제 결식률 조회 (단건)
     @GetMapping("/skip-meal-rate/yesterday")
     public ApiResponse<SkipMealDto.Response> getSkipRateYesterday(
             @RequestParam("school_id") Long schoolId,
             @RequestParam(value = "meal_type", defaultValue = "LUNCH") String mealType) {
-
-        // 어제 날짜 계산
         LocalDate yesterday = LocalDate.now().minusDays(1);
-
-        // [수정] 서비스의 단건 조회 메서드 호출
         SkipMealDto.Response response = metricsService.getDailySkipMeal(schoolId, mealType, yesterday);
         return ApiResponse.success("어제 결식률 조회 성공", response);
     }
 
-    // [추가] 최근 7일 결식률 추이 조회
     @GetMapping("/skip-meal-rate/last-7days")
     public ApiResponse<SkipMealDto.PeriodResponse> getSkipRateLast7Days(
             @RequestParam("school_id") Long schoolId,
             @RequestParam(value = "meal_type", defaultValue = "LUNCH") String mealType) {
-
-        LocalDate end = LocalDate.now();
-        LocalDate start = end.minusDays(6); // 오늘 포함 7일
-
-        // [수정] 서비스의 기간 조회 메서드 호출
+        LocalDate end = LocalDate.now().minusDays(1);
+        LocalDate start = end.minusDays(6);
         SkipMealDto.PeriodResponse response = metricsService.getSkipMealStats(schoolId, mealType, start, end);
         return ApiResponse.success("최근 7일 결식률 조회 성공", response);
     }
 
-    // [추가] 최근 30일 결식률 추이 조회
     @GetMapping("/skip-meal-rate/last-30days")
     public ApiResponse<SkipMealDto.PeriodResponse> getSkipRateLast30Days(
             @RequestParam("school_id") Long schoolId,
             @RequestParam(value = "meal_type", defaultValue = "LUNCH") String mealType) {
-
-        LocalDate end = LocalDate.now();
+        LocalDate end = LocalDate.now().minusDays(1);
         LocalDate start = end.minusDays(29);
-
         SkipMealDto.PeriodResponse response = metricsService.getSkipMealStats(schoolId, mealType, start, end);
         return ApiResponse.success("최근 30일 결식률 조회 성공", response);
     }
@@ -81,50 +67,42 @@ public class MetricsController {
     // 2. 잔반률 (Leftover) API
     // =================================================================================
 
-    // [등록] 매일 잔반량 입력
     @PostMapping("/leftover/daily")
     public ApiResponse<LeftoverDto.Response> registerLeftover(@RequestBody LeftoverDto.RegisterRequest request) {
         LeftoverDto.Response response = metricsService.registerLeftover(request);
         return ApiResponse.success("잔반량이 등록되었습니다.", response);
     }
 
-    // [수정] 잔반량 수정
     @PutMapping("/leftover/daily")
     public ApiResponse<LeftoverDto.Response> updateLeftover(@RequestBody LeftoverDto.UpdateRequest request) {
         LeftoverDto.Response response = metricsService.updateLeftover(request);
         return ApiResponse.success("잔반량이 수정되었습니다.", response);
     }
 
-    // [추가] 어제 잔반량 조회 (단건)
     @GetMapping("/leftover-rate/yesterday")
     public ApiResponse<LeftoverDto.Response> getLeftoverRateYesterday(
             @RequestParam("school_id") Long schoolId,
             @RequestParam(value = "meal_type", defaultValue = "LUNCH") String mealType) {
-
         LocalDate yesterday = LocalDate.now().minusDays(1);
         LeftoverDto.Response response = metricsService.getDailyLeftover(schoolId, mealType, yesterday);
         return ApiResponse.success("어제 잔반량 조회 성공", response);
     }
 
-    // [추가] 최근 7일 잔반량 추이 조회
     @GetMapping("/leftover-rate/last-7days")
     public ApiResponse<LeftoverDto.PeriodResponse> getLeftoverRateLast7Days(
             @RequestParam("school_id") Long schoolId,
             @RequestParam(value = "meal_type", defaultValue = "LUNCH") String mealType) {
-
-        LocalDate end = LocalDate.now();
+        LocalDate end = LocalDate.now().minusDays(1);
         LocalDate start = end.minusDays(6);
         LeftoverDto.PeriodResponse response = metricsService.getLeftoverStats(schoolId, mealType, start, end);
         return ApiResponse.success("최근 7일 잔반량 조회 성공", response);
     }
 
-    // [추가] 최근 30일 잔반량 추이 조회
     @GetMapping("/leftover-rate/last-30days")
     public ApiResponse<LeftoverDto.PeriodResponse> getLeftoverRateLast30Days(
             @RequestParam("school_id") Long schoolId,
             @RequestParam(value = "meal_type", defaultValue = "LUNCH") String mealType) {
-
-        LocalDate end = LocalDate.now();
+        LocalDate end = LocalDate.now().minusDays(1);
         LocalDate start = end.minusDays(29);
         LeftoverDto.PeriodResponse response = metricsService.getLeftoverStats(schoolId, mealType, start, end);
         return ApiResponse.success("최근 30일 잔반량 조회 성공", response);
@@ -132,16 +110,58 @@ public class MetricsController {
 
 
     // =================================================================================
-    // 3. 만족도 (Satisfaction) API - 조회 Only
+    // 3. 만족도 (Satisfaction) API - [여기가 없어서 404가 났던 것입니다!]
     // =================================================================================
 
-    // [추가] 최근 30일 만족도 통계 (긍정/부정/중립 개수)
+    // 1. 최근 30일 만족도 건수 조회
+    // URL: /metrics/satisfaction/count/last-30days
     @GetMapping("/satisfaction/count/last-30days")
     public ApiResponse<SatisfactionDto.CountResponse> getSatisfactionCountLast30Days(
             @RequestParam("school_id") Long schoolId) {
+        return ApiResponse.success("성공", metricsService.getSatisfactionCount(schoolId, 30));
+    }
 
-        // 30일 전 ~ 현재까지 조회
-        SatisfactionDto.CountResponse response = metricsService.getSatisfactionCount(schoolId, 30);
-        return ApiResponse.success("최근 30일 만족도 통계 조회 성공", response);
+    // 2. 최근 30일 만족도 목록(배치) 조회
+    // URL: /metrics/satisfaction/last-30days
+    @GetMapping("/satisfaction/last-30days")
+    public ApiResponse<SatisfactionDto.BatchListResponse> getSatisfactionListLast30Days(
+            @RequestParam("school_id") Long schoolId,
+            @RequestParam(value = "page", defaultValue = "1") int page,
+            @RequestParam(value = "size", defaultValue = "20") int size) {
+        return ApiResponse.success("성공", metricsService.getSatisfactionBatchList(schoolId, 30, page, size));
+    }
+
+    // 3. 긍정 만족도 건수 조회
+    // URL: /metrics/satisfaction/positive/count
+    @GetMapping("/satisfaction/positive/count")
+    public ApiResponse<SatisfactionDto.LabelCountResponse> getPositiveCount(
+            @RequestParam("school_id") Long schoolId,
+            @RequestParam("start_date") LocalDate startDate,
+            @RequestParam("end_date") LocalDate endDate) {
+        return ApiResponse.success("성공", metricsService.getSentimentCount(schoolId, "POSITIVE", startDate, endDate));
+    }
+
+    // 4. 부정 만족도 건수 조회
+    // URL: /metrics/satisfaction/negative/count
+    @GetMapping("/satisfaction/negative/count")
+    public ApiResponse<SatisfactionDto.LabelCountResponse> getNegativeCount(
+            @RequestParam("school_id") Long schoolId,
+            @RequestParam("start_date") LocalDate startDate,
+            @RequestParam("end_date") LocalDate endDate) {
+        return ApiResponse.success("성공", metricsService.getSentimentCount(schoolId, "NEGATIVE", startDate, endDate));
+    }
+
+    // 5. 만족도 리뷰 내용 조회
+    // URL: /metrics/satisfaction/reviews
+    @GetMapping("/satisfaction/reviews")
+    public ApiResponse<SatisfactionDto.ReviewListResponse> getReviews(
+            @RequestParam("school_id") Long schoolId,
+            @RequestParam(value = "batch_id", required = false) String batchId,
+            @RequestParam(value = "start_date", required = false) LocalDate startDate,
+            @RequestParam(value = "end_date", required = false) LocalDate endDate,
+            @RequestParam(value = "sentiment", required = false) String sentiment,
+            @RequestParam(value = "page", defaultValue = "1") int page,
+            @RequestParam(value = "size", defaultValue = "20") int size) {
+        return ApiResponse.success("성공", metricsService.getSatisfactionReviews(schoolId, batchId, startDate, endDate, sentiment, page, size));
     }
 }

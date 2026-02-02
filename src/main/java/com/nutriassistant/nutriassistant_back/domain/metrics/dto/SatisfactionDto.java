@@ -10,8 +10,7 @@ import java.util.Map;
 
 public class SatisfactionDto {
 
-    // --- 공통 VO ---
-
+    // [공통] 기간 객체
     @Getter
     @Builder
     public static class Period {
@@ -19,6 +18,7 @@ public class SatisfactionDto {
         private LocalDate end_date;
     }
 
+    // [공통] 페이징 객체
     @Getter
     @Builder
     public static class Pagination {
@@ -28,8 +28,7 @@ public class SatisfactionDto {
         private Integer page_size;
     }
 
-    // --- 1. 최근 30일 만족도 건수 조회 (GET /metrics/satisfaction/count/last-30days) ---
-
+    // 1. [MetricSatisCountLast30Days] 최근 30일 만족도 건수 조회
     @Getter
     @Builder
     public static class CountResponse {
@@ -41,14 +40,14 @@ public class SatisfactionDto {
         private Long neutral_count;
     }
 
-    // --- 2. 최근 30일 만족도 목록 조회 (GET /metrics/satisfaction/last-30days) ---
-
+    // 2. [MetricSatisListLast30Days] 최근 30일 만족도 조회 (배치 리스트)
     @Getter
     @Builder
     public static class BatchListResponse {
         private Period period;
         private Long school_id;
         private List<BatchInfo> batches;
+        private Pagination pagination;
     }
 
     @Getter
@@ -64,23 +63,22 @@ public class SatisfactionDto {
         private Integer negative_count;
     }
 
-    // --- 3. 긍정/부정 만족도 건수 조회 (GET /metrics/satisfaction/{positive|negative}/count) ---
-
+    // 3 & 4. [MetricSatisPositiveCount / NegativeCount] 긍정/부정 건수 조회
     @Getter
     @Builder
     public static class LabelCountResponse {
         private Long school_id;
-        private String sentiment_label; // POSITIVE, NEGATIVE
+        private String sentiment_label;
         private Long count;
         private Period period;
     }
 
-    // --- 4. 만족도 리뷰 내용 조회 (GET /metrics/satisfaction/reviews) ---
-
+    // 5. [MetricSatisReviewList] 만족도 리뷰 내용 조회
     @Getter
     @Builder
     public static class ReviewListResponse {
         private List<ReviewDetail> reviews;
+        private Pagination pagination;
     }
 
     @Getter
@@ -99,7 +97,7 @@ public class SatisfactionDto {
 
         private List<String> aspect_tags;
         private Map<String, String> aspect_hints;
-        private Map<String, AspectDetailInfo> aspect_details;
+        private Map<String, AspectDetailInfo> aspect_details; // 상세 감정 정보
 
         private List<String> evidence_phrases;
         private List<String> issue_flags;

@@ -1,5 +1,7 @@
 package com.nutriassistant.nutriassistant_back.domain.monthlyopsdoc.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nutriassistant.nutriassistant_back.domain.metrics.entity.Leftover;
 import com.nutriassistant.nutriassistant_back.domain.metrics.entity.SkipMeal;
@@ -12,7 +14,6 @@ import com.nutriassistant.nutriassistant_back.domain.monthlyopsdoc.entity.Report
 import com.nutriassistant.nutriassistant_back.domain.monthlyopsdoc.repository.FileAttachmentRepository;
 import com.nutriassistant.nutriassistant_back.domain.monthlyopsdoc.repository.MonthlyOpsDocRepository;
 
-// [이미지 확인 완료] 리뷰 관련 패키지 경로 반영
 import com.nutriassistant.nutriassistant_back.domain.review.entity.Review;
 import com.nutriassistant.nutriassistant_back.domain.review.repository.ReviewRepository;
 
@@ -28,7 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime; // [추가] 시간 범위 조회를 위해 필요
+import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -45,186 +46,181 @@ public class MonthlyOpsDocService {
     private final RestClient restClient;
     private final SkipMealRepository skipMealRepository;
     private final LeftoverRepository leftoverRepository;
-
-    // [추가] 리뷰 데이터를 가져오기 위한 Repository 주입
     private final ReviewRepository reviewRepository;
 
-    // 1. 운영 자료 생성 (통계 조회 -> AI 분석 -> DB 저장)
+    // =========================================================================
+    // 1. [Create] Create Operation Document (Stats -> AI Analysis -> DB Save)
+    // =========================================================================
     @Transactional
     public MonthlyOpsDocDto.Response createMonthlyOpsDoc(MonthlyOpsDocDto.CreateRequest request) {
 
-        // 1-1. 중복 생성 방지
+        // 1-1. Prevent Duplicate Creation
         if (monthlyOpsDocRepository.existsBySchoolIdAndYearAndMonth(
                 request.getSchool_id(), request.getYear(), request.getMonth())) {
-            throw new IllegalArgumentException("해당 년월의 운영 자료가 이미 존재합니다.");
+            throw new IllegalArgumentException("An operation document for this month already exists.");
         }
 
-        // 1-2. 날짜 범위 계산
+        // 1-2. Calculate Date Range
         YearMonth yearMonth = YearMonth.of(request.getYear(), request.getMonth());
         LocalDate startDate = yearMonth.atDay(1);
         LocalDate endDate = yearMonth.atEndOfMonth();
 
-        // [추가] 리뷰 조회용 LocalDateTime 변환 (해당 월 1일 00:00:00 ~ 말일 23:59:59)
         LocalDateTime startDateTime = startDate.atStartOfDay();
         LocalDateTime endDateTime = endDate.atTime(23, 59, 59);
 
-        // 1-3. DB에서 통계 데이터 조회
-        log.info("📊 통계 데이터 조회 시작: {}년 {}월", request.getYear(), request.getMonth());
+        // 1-3. Fetch Statistics Data from DB
+        log.info("📊 Fetching statistics data: {}-{}", request.getYear(), request.getMonth());
 
-        // 중식 데이터
         List<SkipMeal> lunchSkips = skipMealRepository.findBySchoolIdAndMealTypeAndDateBetweenOrderByDateAsc(
                 request.getSchool_id(), "LUNCH", startDate, endDate);
         List<Leftover> lunchLeftovers = leftoverRepository.findBySchoolIdAndMealTypeAndDateBetweenOrderByDateAsc(
                 request.getSchool_id(), "LUNCH", startDate, endDate);
 
-        // 석식 데이터
         List<SkipMeal> dinnerSkips = skipMealRepository.findBySchoolIdAndMealTypeAndDateBetweenOrderByDateAsc(
                 request.getSchool_id(), "DINNER", startDate, endDate);
         List<Leftover> dinnerLeftovers = leftoverRepository.findBySchoolIdAndMealTypeAndDateBetweenOrderByDateAsc(
                 request.getSchool_id(), "DINNER", startDate, endDate);
 
-        // [추가] 해당 기간의 모든 리뷰 데이터 조회
-        // ⚠️ 주의: ReviewRepository에 findAllBySchoolIdAndCreatedAtBetween 메서드가 구현되어 있어야 합니다.
-        List<Review> monthlyReviews = reviewRepository.findAllBySchoolIdAndCreatedAtBetween(
+        List<Review> monthlyReviews = reviewRepository.findBySchoolIdAndCreatedAtBetween(
                 request.getSchool_id(), startDateTime, endDateTime);
 
-        log.info("   중식 결식: {}건, 잔반: {}건", lunchSkips.size(), lunchLeftovers.size());
-        log.info("   석식 결식: {}건, 잔반: {}건", dinnerSkips.size(), dinnerLeftovers.size());
-        log.info("   수집된 리뷰: {}건", monthlyReviews.size()); // [추가] 로그 확인
+        log.info("   Lunch Data: {}, Dinner Data: {}", lunchSkips.size(), dinnerSkips.size());
+        log.info("   Collected Reviews: {}", monthlyReviews.size());
 
-        // 1-4. FastAPI 요청 페이로드 구성
+        // 1-4. Construct Payload for FastAPI Request (Converted to Snake Case)
         Map<String, Object> fastApiPayload = buildFastApiPayload(
                 request,
                 lunchSkips, lunchLeftovers,
                 dinnerSkips, dinnerLeftovers,
-                monthlyReviews // [수정] 리뷰 데이터 전달
+                monthlyReviews
         );
 
-        // 1-5. FastAPI 호출
+        // 1-5. Call FastAPI (Request AI Analysis)
         Map<String, Object> analyzedResult;
         try {
-            log.info("🤖 FastAPI 분석 요청 시작");
-
+            log.info("🤖 Starting FastAPI Analysis Request: /api/reports/monthly");
             analyzedResult = restClient.post()
-                    .uri("/reports/monthly")
+                    .uri("/api/reports/monthly")
+                    // [Fix] Add Authorization Header: FastAPI requires this.
+                    // Replace 'temp_token_value' with your actual API key or token logic.
+                    .header("Authorization", "Bearer temp_token_value")
                     .body(fastApiPayload)
                     .retrieve()
                     .body(new ParameterizedTypeReference<Map<String, Object>>() {});
-
-            log.info("✅ AI 분석 완료");
-
+            log.info("✅ AI Analysis Completed");
         } catch (Exception e) {
-            log.error("❌ FastAPI 분석 요청 실패", e);
-            throw new RuntimeException("AI 분석 서버 오류: " + e.getMessage());
+            log.error("❌ FastAPI Analysis Request Failed", e);
+            throw new RuntimeException("AI Analysis Server Error: " + e.getMessage());
         }
 
-        // 1-6. 결과 저장
+        // 1-6. Convert Result to JSON
         String reportContentJson;
         try {
-            Object dataObj = analyzedResult.get("data");
+            Object dataObj = analyzedResult.get("data") != null ? analyzedResult.get("data") : analyzedResult;
             reportContentJson = objectMapper.writeValueAsString(dataObj);
         } catch (Exception e) {
-            log.error("❌ JSON 변환 실패", e);
-            throw new RuntimeException("JSON 변환 오류: " + e.getMessage());
+            log.error("❌ JSON Conversion Failed", e);
+            throw new RuntimeException("JSON Conversion Error: " + e.getMessage());
         }
 
-        // 1-7. DB 저장
+        // 1-7. Save to DB
         MonthlyOpsDoc doc = MonthlyOpsDoc.builder()
                 .schoolId(request.getSchool_id())
                 .title(request.getTitle())
                 .year(request.getYear())
                 .month(request.getMonth())
                 .status(ReportStatus.COMPLETED)
-                .reportContent(reportContentJson)
+                .reportData(reportContentJson)
                 .build();
 
         MonthlyOpsDoc savedDoc = monthlyOpsDocRepository.save(doc);
-        log.info("💾 리포트 DB 저장 완료: ID={}", savedDoc.getId());
+        log.info("💾 Report saved to DB: ID={}", savedDoc.getId());
 
-        // 1-8. 응답 반환
         return getMonthlyOpsDocDetail(savedDoc.getId());
     }
 
     /**
-     * FastAPI 요청 페이로드 구성
+     * Constructs the data structure to send to FastAPI.
+     * [Fix] Changed keys to Snake Case (abc_def) to match Python/FastAPI standards.
      */
     private Map<String, Object> buildFastApiPayload(
             MonthlyOpsDocDto.CreateRequest request,
             List<SkipMeal> lunchSkips, List<Leftover> lunchLeftovers,
             List<SkipMeal> dinnerSkips, List<Leftover> dinnerLeftovers,
-            List<Review> reviews) { // [수정] 파라미터 추가
+            List<Review> reviews) {
 
         Map<String, Object> payload = new HashMap<>();
 
-        // 기본 정보
-        payload.put("userName", "관리자");
+        // [Fix] Added school_id (Required field)
+        payload.put("school_id", request.getSchool_id());
+
+        // Meta Information (Snake Case)
+        payload.put("user_name", "Admin");    // userName -> user_name
         payload.put("year", request.getYear());
         payload.put("month", request.getMonth());
-        payload.put("targetGroup", "STUDENT");
+        payload.put("target_group", "STUDENT"); // targetGroup -> target_group
 
-        // dailyInfo 구성 (결식 + 잔반 데이터)
+        // Daily Data (daily_info)
         List<Map<String, Object>> dailyInfoList = new ArrayList<>();
 
-        // 중식
-        for (int i = 0; i < lunchSkips.size(); i++) {
-            SkipMeal skip = lunchSkips.get(i);
-            Leftover leftover = i < lunchLeftovers.size() ? lunchLeftovers.get(i) : null;
+        // Process Lunch
+        for (SkipMeal skip : lunchSkips) {
+            Leftover leftover = lunchLeftovers.stream()
+                    .filter(l -> l.getDate().equals(skip.getDate()))
+                    .findFirst().orElse(null);
+
             Map<String, Object> dailyInfo = new HashMap<>();
             dailyInfo.put("date", skip.getDate().toString());
-            dailyInfo.put("mealType", "중식");
-            dailyInfo.put("servedProxy", skip.getTotalStudents() - skip.getSkippedCount());
-            dailyInfo.put("missedProxy", skip.getSkippedCount());
-            dailyInfo.put("leftoverKg", leftover != null ? leftover.getAmountKg() : 0.0);
+            dailyInfo.put("meal_type", "Lunch");       // mealType -> meal_type
+            dailyInfo.put("served_proxy", skip.getTotalStudents() - skip.getSkippedCount()); // servedProxy -> served_proxy
+            dailyInfo.put("missed_proxy", skip.getSkippedCount());   // missedProxy -> missed_proxy
+            dailyInfo.put("leftover_kg", leftover != null ? leftover.getAmountKg() : 0.0); // leftoverKg -> leftover_kg
             dailyInfoList.add(dailyInfo);
         }
 
-        // 석식
-        for (int i = 0; i < dinnerSkips.size(); i++) {
-            SkipMeal skip = dinnerSkips.get(i);
-            Leftover leftover = i < dinnerLeftovers.size() ? dinnerLeftovers.get(i) : null;
+        // Process Dinner
+        for (SkipMeal skip : dinnerSkips) {
+            Leftover leftover = dinnerLeftovers.stream()
+                    .filter(l -> l.getDate().equals(skip.getDate()))
+                    .findFirst().orElse(null);
+
             Map<String, Object> dailyInfo = new HashMap<>();
             dailyInfo.put("date", skip.getDate().toString());
-            dailyInfo.put("mealType", "석식");
-            dailyInfo.put("servedProxy", skip.getTotalStudents() - skip.getSkippedCount());
-            dailyInfo.put("missedProxy", skip.getSkippedCount());
-            dailyInfo.put("leftoverKg", leftover != null ? leftover.getAmountKg() : 0.0);
+            dailyInfo.put("meal_type", "Dinner");
+            dailyInfo.put("served_proxy", skip.getTotalStudents() - skip.getSkippedCount());
+            dailyInfo.put("missed_proxy", skip.getSkippedCount());
+            dailyInfo.put("leftover_kg", leftover != null ? leftover.getAmountKg() : 0.0);
             dailyInfoList.add(dailyInfo);
         }
+        payload.put("daily_info", dailyInfoList); // dailyInfo -> daily_info
 
-        payload.put("dailyInfo", dailyInfoList);
-
-        // [추가] 리뷰 데이터를 FastAPI가 이해할 수 있는 Map 리스트로 변환
+        // Reviews List
         List<Map<String, Object>> reviewList = reviews.stream()
-                .map(review -> {
-                    Map<String, Object> map = new HashMap<>();
-                    // ⚠️ Review 엔티티 필드 확인 필요 (예: getComment, getScore 등)
-                    map.put("content", review.getContent());     // ✅ getContent() 사용
-                    map.put("rating", review.getRating());       // ✅ getRating() 사용
-                    map.put("createdAt", review.getCreatedAt().toString());
-
-                    return map;
+                .map(r -> {
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("content", r.getContent());
+                    m.put("rating", r.getRating());
+                    m.put("created_at", r.getCreatedAt().toString()); // createdAt -> created_at
+                    return m;
                 })
                 .collect(Collectors.toList());
+        payload.put("reviews", reviewList);
 
-        payload.put("reviews", reviewList); // [수정] 빈 리스트 대신 실제 리뷰 데이터 삽입
-
-        // 나머지는 빈 배열로 초기화 (식단표, 게시글 등은 나중에 필요하면 추가)
-        payload.put("mealPlan", new ArrayList<>());
+        // Empty Arrays (Snake Case)
+        payload.put("meal_plan", new ArrayList<>()); // mealPlan -> meal_plan
         payload.put("posts", new ArrayList<>());
-
-        // 분석 결과가 들어올 빈 공간들
-        payload.put("reviewAnalyses", new ArrayList<>());
-        payload.put("postAnalyses", new ArrayList<>());
-        payload.put("dailyAnalyses", new ArrayList<>());
 
         return payload;
     }
 
-    // 2. 목록 조회
+    // =========================================================================
+    // 2. List Retrieval
+    // =========================================================================
     public MonthlyOpsDocDto.ListResponse getMonthlyOpsDocList(
             Long schoolId, Integer year, Integer month, int page, int size) {
 
         Pageable pageable = PageRequest.of(page - 1, size, Sort.by("id").descending());
+
         Page<MonthlyOpsDoc> pageResult = monthlyOpsDocRepository.findAllBySchoolId(schoolId, pageable);
 
         List<MonthlyOpsDocDto.Response> docList = pageResult.getContent().stream()
@@ -244,10 +240,12 @@ public class MonthlyOpsDocService {
                 .build();
     }
 
-    // 3. 상세 조회
+    // =========================================================================
+    // 3. Detail Retrieval
+    // =========================================================================
     public MonthlyOpsDocDto.Response getMonthlyOpsDocDetail(Long id) {
         MonthlyOpsDoc doc = monthlyOpsDocRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("해당 운영 자료를 찾을 수 없습니다."));
+                .orElseThrow(() -> new IllegalArgumentException("Operation document not found."));
 
         List<FileAttachment> attachments = fileAttachmentRepository
                 .findAllByRelatedTypeAndRelatedId("OPS", id);
@@ -265,22 +263,18 @@ public class MonthlyOpsDocService {
         return mapToResponse(doc, files);
     }
 
-    // 매핑 헬퍼
     private MonthlyOpsDocDto.Response mapToResponse(
             MonthlyOpsDoc entity,
             List<MonthlyOpsDocDto.FileResponse> files) {
 
         Map<String, Object> contentMap = null;
         try {
-            if (entity.getReportContent() != null) {
-                contentMap = objectMapper.readValue(entity.getReportContent(), Map.class);
+            if (entity.getReportData() != null) {
+                contentMap = objectMapper.readValue(entity.getReportData(), Map.class);
             }
         } catch (Exception e) {
-            log.error("JSON 파싱 실패 ID: {}", entity.getId(), e);
+            log.error("JSON Parsing Failed ID: {}", entity.getId(), e);
         }
-
-        List<MonthlyOpsDocDto.FileResponse> safeFiles =
-                (files != null) ? files : Collections.emptyList();
 
         return MonthlyOpsDocDto.Response.builder()
                 .id(entity.getId())
@@ -291,7 +285,25 @@ public class MonthlyOpsDocService {
                 .status(entity.getStatus().toString())
                 .report_content(contentMap)
                 .created_at(entity.getCreatedAt())
-                .files(safeFiles)
+                .files(files != null ? files : Collections.emptyList())
                 .build();
+    }
+
+    // =========================================================================
+    // 4. [For MealPlanService Integration] Helper Methods
+    // =========================================================================
+    public Optional<MonthlyOpsDoc> findByYearAndMonth(int year, int month) {
+        return monthlyOpsDocRepository.findByYearAndMonth(year, month);
+    }
+
+    public JsonNode getReportDataAsJson(MonthlyOpsDoc doc) {
+        try {
+            String jsonStr = doc.getReportData();
+            if (jsonStr == null || jsonStr.isEmpty()) return null;
+            return objectMapper.readTree(jsonStr);
+        } catch (JsonProcessingException e) {
+            log.error("❌ JSON Parsing Failed (ID: {}): {}", doc.getId(), e.getMessage());
+            return null;
+        }
     }
 }
