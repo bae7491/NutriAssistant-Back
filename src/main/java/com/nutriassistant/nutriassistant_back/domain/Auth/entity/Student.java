@@ -3,8 +3,10 @@ package com.nutriassistant.nutriassistant_back.domain.Auth.entity;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import com.nutriassistant.nutriassistant_back.domain.Auth.util.PhoneNumberUtil;
 
 import java.time.LocalDateTime;
+
 
 @Entity
 @Table(name = "users_student")
@@ -37,6 +39,9 @@ public class Student {
 
     @Column(name = "class_no", nullable = false) // INT
     private Integer classNo;
+
+    @Column(name = "allergy_codes", length = 100)
+    private String allergyCodes;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false) // DATETIME
@@ -75,4 +80,14 @@ public class Student {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
+
+    public String getAllergyCodes() { return allergyCodes; }
+    public void setAllergyCodes(String allergyCodes) { this.allergyCodes = allergyCodes; }
+
+    @PrePersist
+    @PreUpdate
+    private void normalizePhone() {
+        this.phone = PhoneNumberUtil.normalizeToDigits(this.phone, PhoneNumberUtil.Mode.MOBILE_ONLY);
+    }
+
 }

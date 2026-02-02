@@ -6,9 +6,11 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
+import java.util.List;
+
 /**
  * ERD: users_student
- * - school_id, username, password_hash, name, phone, grade, class_no
+ * - school_id, username, password_hash, name, phone, grade, class_no, allergy_codes
  *
  * ✅ 요청 JSON에서 snake_case로 와도 되고(canonical),
  *    프론트가 camelCase로 보내도 받게끔(JsonAlias) 처리함.
@@ -51,6 +53,15 @@ public class SignUpRequest {
     @JsonAlias({"classNo", "classroom"})
     private Integer classNo;
 
+    /**
+     * ✅ 학생 알레르기 체크박스 결과 (1~19 코드 배열)
+     * 예) [1,5,6]
+     * - DB에는 AuthService에서 CSV("1,5,6")로 변환해서 Student.allergy_codes에 저장
+     */
+    @JsonProperty("allergy_codes")
+    @JsonAlias({"allergyCodes", "allergies"})
+    private List<Integer> allergyCodes;
+
     public SignUpRequest() {}
 
     public Long getSchoolId() { return schoolId; }
@@ -73,4 +84,7 @@ public class SignUpRequest {
 
     public Integer getClassNo() { return classNo; }
     public void setClassNo(Integer classNo) { this.classNo = classNo; }
+
+    public List<Integer> getAllergyCodes() { return allergyCodes; }
+    public void setAllergyCodes(List<Integer> allergyCodes) { this.allergyCodes = allergyCodes; }
 }

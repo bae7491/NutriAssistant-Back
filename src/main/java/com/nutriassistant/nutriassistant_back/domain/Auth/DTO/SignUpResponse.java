@@ -16,6 +16,7 @@ public class SignUpResponse {
     // ✅ ERD 필드도 함께 내려주기(프론트/검증/디버깅에 유용)
     @JsonProperty("school_id")
     private Long schoolId;
+
     private String username;
     private String name;
     private String phone;
@@ -23,6 +24,10 @@ public class SignUpResponse {
 
     @JsonProperty("class_no")
     private Integer classNo;
+
+    // ✅ 추가: 알레르기 코드 CSV (예: "1,5,6")
+    @JsonProperty("allergy_codes")
+    private String allergyCodes;
 
     @JsonProperty("created_at")
     private LocalDateTime createdAt;
@@ -40,6 +45,7 @@ public class SignUpResponse {
         this.phone = student.getPhone();
         this.grade = student.getGrade();
         this.classNo = student.getClassNo();
+        this.allergyCodes = student.getAllergyCodes();   // ✅ 핵심
         this.createdAt = student.getCreatedAt();
         this.updatedAt = student.getUpdatedAt();
     }
@@ -64,6 +70,9 @@ public class SignUpResponse {
 
     public Integer getClassNo() { return classNo; }
     public void setClassNo(Integer classNo) { this.classNo = classNo; }
+
+    public String getAllergyCodes() { return allergyCodes; }
+    public void setAllergyCodes(String allergyCodes) { this.allergyCodes = allergyCodes; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

@@ -3,6 +3,8 @@ package com.nutriassistant.nutriassistant_back.domain.Auth.entity;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import com.nutriassistant.nutriassistant_back.domain.Auth.util.PhoneNumberUtil;
+
 
 import java.time.LocalDateTime;
 
@@ -60,4 +62,11 @@ public class Dietitian {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
+
+    @PrePersist
+    @PreUpdate
+    private void normalizePhone() {
+        this.phone = PhoneNumberUtil.normalizeToDigits(this.phone, PhoneNumberUtil.Mode.MOBILE_ONLY);
+    }
+
 }

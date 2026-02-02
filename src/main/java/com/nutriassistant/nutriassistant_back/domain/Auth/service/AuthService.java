@@ -12,6 +12,12 @@ import org.springframework.web.server.ResponseStatusException;
 import com.nutriassistant.nutriassistant_back.domain.Auth.DTO.PasswordChangeRequest;
 import com.nutriassistant.nutriassistant_back.domain.Auth.DTO.StudentUpdateRequest;
 
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
+
 @Service
 public class AuthService {
 
@@ -45,6 +51,7 @@ public class AuthService {
         student.setPhone(request.getPhone());
         student.setGrade(request.getGrade());
         student.setClassNo(request.getClassNo());
+        student.setAllergyCodes(toAllergyCsv(request.getAllergyCodes()));
 
         // pw -> BCrypt 해시 -> password_hash 저장
         student.setPasswordHash(passwordEncoder.encode(request.getPw()));
@@ -85,5 +92,31 @@ public class AuthService {
         student.setPasswordHash(passwordEncoder.encode(request.getNewPw()));
         studentRepository.save(student);
     }
+
+    private Set<Integer> validateAllergyCodes(List<Integer> codes) {
+        if (codes == null) return Set.of();
+
+        Set<Integer> out = new HashSet<>();
+        for (Integer c : codes) {
+            if (c == null) continue;
+            if (c < 1 || c > 19) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "invalid allergy code: " + c);
+            }
+            out.add(c); // 중복 자동 제거
+        }
+        return out;
+    }
+
+    private String toAllergyCsv(List<Integer> codes) {
+        if (codes == null || codes.isEmpty()) return "";
+        return codes.stream()
+                .filter(Objects::nonNull)
+                .filter(c -> c >= 1 && c <= 19) // 1~19만 허용
+                .distinct()
+                .sorted()
+                .map(String::valueOf)
+                .collect(Collectors.joining(","));
+    }
+
 
 }
