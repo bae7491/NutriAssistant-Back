@@ -8,57 +8,33 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestTemplate;
 
 /**
- * REST API 클라이언트 설정 클래스
+ * REST API 클라이언트 통합 설정 클래스
  *
- * 역할:
- * - 외부 API 호출을 위한 HTTP 클라이언트를 설정합니다.
- * - FastAPI 서버(AI 분석 서버)와의 통신에 사용됩니다.
- * - 타임아웃 등 연결 설정을 관리합니다.
- *
- * 제공하는 Bean:
- * 1. RestClient - Spring 6.1+의 새로운 HTTP 클라이언트 (권장)
- * 2. RestTemplate - 레거시 HTTP 클라이언트 (하위 호환용)
- *
- * 설정값:
- * - fastapi.base-url: FastAPI 서버 주소 (application.yml에서 설정)
- * - 연결 타임아웃: 10초 (서버 연결까지 대기 시간)
- * - 읽기 타임아웃: 180초 (AI 분석 응답 대기 시간, 3분)
+ * [중요] 이 설정 파일 하나로 RestClient와 RestTemplate을 모두 관리합니다.
+ * 별도의 RestTemplateConfig 파일을 만들지 마세요. (중복 에러 원인)
  */
 @Configuration
 public class RestClientConfig {
 
     /**
-     * FastAPI 서버 기본 URL
-     * application.yml에서 fastapi.base-url로 설정
-     * 설정이 없으면 기본값 http://localhost:8001 사용
+     * FastAPI 서버 주소 설정
+     * application.yml에 'fastapi.base-url'이 없으면 기본값으로 'http://localhost:8001'을 사용합니다.
+     * (FastAPI 실행 포트가 8001이므로 이에 맞췄습니다)
      */
     @Value("${fastapi.base-url:http://localhost:8001}")
     private String fastApiBaseUrl;
 
     /**
-     * RestClient Bean 설정 (Spring 6.1+ 권장)
-     *
-     * 특징:
-     * - Fluent API 제공 (체이닝 방식으로 요청 구성)
-     * - 동기/비동기 모두 지원
-     * - 타입 안전한 응답 처리
-     *
-     * 사용 예시:
-     * <pre>
-     * String result = restClient.get()
-     *     .uri("/api/analyze")
-     *     .retrieve()
-     *     .body(String.class);
-     * </pre>
+     * [1] RestClient 설정 (Spring 6.1+ 권장)
+     * 최신 방식의 HTTP 클라이언트입니다.
      */
     @Bean
     public RestClient restClient() {
-        // 타임아웃 설정 (AI 분석은 시간이 오래 걸릴 수 있음)
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(10000);   // 연결 타임아웃: 10초
-        factory.setReadTimeout(180000);     // 읽기 타임아웃: 180초 (3분)
+        // AI 분석이 오래 걸릴 수 있으므로 타임아웃을 넉넉하게 3분(180초)으로 설정
+        factory.setConnectTimeout(10000);   // 연결 시도 10초 제한
+        factory.setReadTimeout(180000);     // 응답 대기 180초 제한
 
-        // RestClient 생성 및 Base URL 설정
         return RestClient.builder()
                 .baseUrl(fastApiBaseUrl)
                 .requestFactory(factory)
@@ -66,23 +42,18 @@ public class RestClientConfig {
     }
 
     /**
-     * RestTemplate Bean 설정 (레거시, 하위 호환용)
-     *
-     * 특징:
-     * - Spring 3.0부터 사용된 전통적인 HTTP 클라이언트
-     * - 동기 방식으로만 동작
-     * - 새 프로젝트에서는 RestClient 사용 권장
-     *
-     * 사용 예시:
-     * <pre>
-     * String result = restTemplate.getForObject("/api/analyze", String.class);
-     * </pre>
+     * [2] RestTemplate 설정 (레거시 호환용)
+     * ReviewAnalysisService 등에서 사용하는 전통적인 HTTP 클라이언트입니다.
+     * 이 Bean이 등록되어 있어야 'private final RestTemplate restTemplate;' 주입이 가능합니다.
      */
     @Bean
     public RestTemplate restTemplate() {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(10000);   // 연결 타임아웃: 10초
-        factory.setReadTimeout(180000);     // 읽기 타임아웃: 180초 (3분)
+
+        // FastAPI 분석 요청 시 타임아웃 방지를 위한 설정
+        factory.setConnectTimeout(10000);   // 연결: 10초
+        factory.setReadTimeout(180000);     // 읽기: 3분 (분석이 1분 이상 걸려도 끊기지 않도록 함)
+
         return new RestTemplate(factory);
     }
 }
