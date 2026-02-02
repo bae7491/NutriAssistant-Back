@@ -11,6 +11,12 @@ import com.nutriassistant.nutriassistant_back.global.ApiResponse;
 import com.nutriassistant.nutriassistant_back.global.auth.CurrentUser;
 import com.nutriassistant.nutriassistant_back.global.auth.UserContext;
 import com.nutriassistant.nutriassistant_back.global.exception.ErrorResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,6 +30,7 @@ import java.util.UUID;
 @Slf4j
 @RestController
 @RequestMapping("/boards")
+@Tag(name = "Board", description = "게시판 API - 게시글 CRUD 기능 제공")
 public class BoardController {
 
     private final BoardService boardService;
@@ -32,10 +39,15 @@ public class BoardController {
         this.boardService = boardService;
     }
 
-    /**
-     * 게시글 등록
-     * NEW_MENU 카테고리인 경우 자동으로 FastAPI에 신메뉴 분석 요청
-     */
+    @Operation(
+            summary = "게시글 등록",
+            description = "새 게시글을 등록합니다. NEW_MENU 카테고리인 경우 AI 분석이 자동으로 요청됩니다."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "게시글 등록 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "요청값 오류"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
+    })
     @PostMapping
     public ResponseEntity<?> createBoard(
             @CurrentUser UserContext user,
@@ -98,14 +110,23 @@ public class BoardController {
         );
     }
 
-    /**
-     * 게시글 목록 조회
-     */
+    @Operation(
+            summary = "게시글 목록 조회",
+            description = "게시글 목록을 페이징하여 조회합니다. 카테고리와 키워드로 필터링 가능합니다."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "요청 파라미터 오류")
+    })
     @GetMapping
     public ResponseEntity<ApiResponse<BoardListResponse>> getBoardList(
+            @Parameter(description = "페이지 번호 (1부터 시작)", example = "1")
             @RequestParam(defaultValue = "1") int page,
+            @Parameter(description = "페이지 크기 (최대 100)", example = "20")
             @RequestParam(defaultValue = "20") int size,
+            @Parameter(description = "카테고리 필터 (NOTICE, NEW_MENU, FREE 등)")
             @RequestParam(required = false) String category,
+            @Parameter(description = "검색 키워드 (제목, 작성자명)")
             @RequestParam(required = false) String keyword
     ) {
         try {
@@ -148,12 +169,19 @@ public class BoardController {
         }
     }
 
-    /**
-     * 게시글 상세 조회
-     */
+    @Operation(
+            summary = "게시글 상세 조회",
+            description = "게시글의 상세 정보를 조회합니다. 조회 시 조회수가 1 증가합니다."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "410", description = "삭제된 게시글")
+    })
     @GetMapping("/{boardId}")
     public ResponseEntity<ApiResponse<BoardDetailResponse>> getBoardDetail(
             @CurrentUser UserContext user,
+            @Parameter(description = "게시글 ID", required = true, example = "1")
             @PathVariable Long boardId
     ) {
         try {
@@ -187,12 +215,21 @@ public class BoardController {
         }
     }
 
-    /**
-     * 게시글 수정
-     */
+    @Operation(
+            summary = "게시글 수정",
+            description = "게시글을 수정합니다. 작성자 본인만 수정할 수 있습니다."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "수정 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "요청값 오류"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "수정 권한 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "410", description = "삭제된 게시글")
+    })
     @PatchMapping("/{boardId}")
     public ResponseEntity<?> updateBoard(
             @CurrentUser UserContext user,
+            @Parameter(description = "게시글 ID", required = true, example = "1")
             @PathVariable Long boardId,
             @RequestBody BoardUpdateRequest request
     ) {
@@ -266,12 +303,19 @@ public class BoardController {
         }
     }
 
-    /**
-     * 게시글 삭제 (Soft Delete)
-     */
+    @Operation(
+            summary = "게시글 삭제",
+            description = "게시글을 삭제합니다 (Soft Delete). 작성자 본인만 삭제할 수 있습니다."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "삭제 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "삭제 권한 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음")
+    })
     @DeleteMapping("/{boardId}")
     public ResponseEntity<?> deleteBoard(
             @CurrentUser UserContext user,
+            @Parameter(description = "게시글 ID", required = true, example = "1")
             @PathVariable Long boardId
     ) {
         String path = "/boards/" + boardId;
