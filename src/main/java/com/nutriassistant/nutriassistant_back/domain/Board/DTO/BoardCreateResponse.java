@@ -23,6 +23,8 @@ public class BoardCreateResponse {
 
     private Long authorId;
 
+    private String authorName;
+
     private String authorType;
 
     private Integer viewCount;

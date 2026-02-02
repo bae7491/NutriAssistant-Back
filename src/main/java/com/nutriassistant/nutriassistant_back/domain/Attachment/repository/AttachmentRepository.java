@@ -11,4 +11,6 @@ import java.util.List;
 public interface AttachmentRepository extends JpaRepository<Attachment, Long> {
 
     List<Attachment> findByRelatedTypeAndRelatedId(RelatedType relatedType, Long relatedId);
+
+    boolean existsByRelatedTypeAndRelatedId(RelatedType relatedType, Long relatedId);
 }

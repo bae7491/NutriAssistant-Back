@@ -2,8 +2,11 @@ package com.nutriassistant.nutriassistant_back.domain.Board.repository;
 
 import com.nutriassistant.nutriassistant_back.domain.Board.entity.Board;
 import com.nutriassistant.nutriassistant_back.domain.Board.entity.CategoryType;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -14,4 +17,14 @@ public interface BoardRepository extends JpaRepository<Board, Long> {
 
     List<Board> findByCategoryAndCreatedAtAfterOrderByCreatedAtDesc(
             CategoryType category, LocalDateTime since, Pageable pageable);
+
+    // 카테고리 + 키워드 검색 (제목 또는 작성자명)
+    @Query("SELECT b FROM Board b WHERE " +
+            "(:category IS NULL OR b.category = :category) AND " +
+            "(:keyword IS NULL OR :keyword = '' OR b.title LIKE %:keyword% OR b.authorName LIKE %:keyword%) " +
+            "ORDER BY b.createdAt DESC")
+    Page<Board> findByFilters(
+            @Param("category") CategoryType category,
+            @Param("keyword") String keyword,
+            Pageable pageable);
 }

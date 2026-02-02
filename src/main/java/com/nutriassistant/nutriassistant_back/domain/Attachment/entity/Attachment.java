@@ -35,6 +35,9 @@ public class Attachment {
     @Column(name = "file_type", length = 100)
     private String fileType;
 
+    @Column(name = "file_size")
+    private Long fileSize;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -45,5 +48,14 @@ public class Attachment {
         this.fileName = fileName;
         this.s3Path = s3Path;
         this.fileType = fileType;
+    }
+
+    public Attachment(RelatedType relatedType, Long relatedId, String fileName, String s3Path, String fileType, Long fileSize) {
+        this.relatedType = relatedType;
+        this.relatedId = relatedId;
+        this.fileName = fileName;
+        this.s3Path = s3Path;
+        this.fileType = fileType;
+        this.fileSize = fileSize;
     }
 }
