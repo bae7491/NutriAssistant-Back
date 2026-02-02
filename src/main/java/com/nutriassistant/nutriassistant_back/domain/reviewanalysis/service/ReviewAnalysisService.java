@@ -1,18 +1,15 @@
 package com.nutriassistant.nutriassistant_back.domain.reviewanalysis.service;
 
+import com.nutriassistant.nutriassistant_back.domain.review.entity.Review;
+import com.nutriassistant.nutriassistant_back.domain.review.repository.ReviewRepository;
 import com.nutriassistant.nutriassistant_back.domain.reviewanalysis.dto.FastApiDto;
 import com.nutriassistant.nutriassistant_back.domain.reviewanalysis.entity.ReviewAnalysis;
 import com.nutriassistant.nutriassistant_back.domain.reviewanalysis.repository.ReviewAnalysisRepository;
-// 아래 import 경로는 실제 프로젝트의 review 패키지 위치와 일치해야 합니다.
-import com.nutriassistant.nutriassistant_back.domain.review.repository.ReviewRepository;
-import com.nutriassistant.nutriassistant_back.domain.review.entity.Review;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestClient;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -27,18 +24,29 @@ public class ReviewAnalysisService {
 
     private final ReviewAnalysisRepository reviewAnalysisRepository;
     private final ReviewRepository reviewRepository;
-    private final RestTemplate restTemplate;
 
-    @Value("${fastapi.url}")
-    private String fastApiUrl;
+    // [변경] RestTemplate + @Value 삭제 -> RestClient 사용
+    // RestClientConfig에서 이미 URL 설정이 완료된 상태로 주입됩니다.
+    private final RestClient restClient;
 
+    // [1] 가장 최근 분석 결과 1건 조회 (Controller용)
+    public ReviewAnalysis getLatestAnalysis(Long schoolId) {
+        return reviewAnalysisRepository.findTopBySchoolIdOrderByTargetYmDesc(schoolId);
+    }
+
+    // [2] 분석 결과 리스트 조회 (Controller용)
+    public List<ReviewAnalysis> getAnalysisList(Long schoolId) {
+        return reviewAnalysisRepository.findBySchoolId(schoolId);
+    }
+
+    // [3] 일일 분석 실행 로직
     @Transactional
     public void runDailyAnalysis(Long schoolId, LocalDate targetDate) {
+        log.info("일일 감성 분석 시작 - School: {}, Date: {}", schoolId, targetDate);
 
         LocalDateTime startOfDay = targetDate.atStartOfDay();
         LocalDateTime endOfDay = targetDate.plusDays(1).atStartOfDay();
 
-        // ReviewRepository에 해당 메소드가 없다면 추가가 필요합니다.
         List<Review> reviews = reviewRepository.findBySchoolIdAndCreatedAtBetween(schoolId, startOfDay, endOfDay);
 
         if (reviews.isEmpty()) {
@@ -46,6 +54,7 @@ public class ReviewAnalysisService {
             return;
         }
 
+        // FastAPI 요청 데이터 생성
         List<String> texts = reviews.stream()
                 .map(Review::getContent)
                 .collect(Collectors.toList());
@@ -57,11 +66,12 @@ public class ReviewAnalysisService {
                 .build();
 
         try {
-            FastApiDto.Response response = restTemplate.postForObject(
-                    fastApiUrl + "/api/analyze/daily",
-                    requestDto,
-                    FastApiDto.Response.class
-            );
+            // [변경] RestClient를 사용한 깔끔한 호출
+            FastApiDto.Response response = restClient.post()
+                    .uri("/api/analyze/daily") // Base URL은 이미 설정됨
+                    .body(requestDto)
+                    .retrieve()
+                    .body(FastApiDto.Response.class);
 
             if (response != null) {
                 ReviewAnalysis analysis = ReviewAnalysis.builder()
@@ -70,6 +80,8 @@ public class ReviewAnalysisService {
                         .sentimentLabel(response.getSentimentLabel())
                         .sentimentScore(response.getSentimentScore())
                         .sentimentConf(response.getSentimentConf())
+                        .positiveCount(response.getPositiveCount()) // 개수 저장
+                        .negativeCount(response.getNegativeCount()) // 개수 저장
                         .aspectTags(String.join(",", response.getAspectTags()))
                         .evidencePhrases(String.join("|", response.getEvidencePhrases()))
                         .issueFlags(response.getIssueFlags())
@@ -81,11 +93,5 @@ public class ReviewAnalysisService {
         } catch (Exception e) {
             log.error("FastAPI 통신 중 오류 발생: {}", e.getMessage());
         }
-    }
-
-    public ReviewAnalysis getLatestAnalysis(Long schoolId) {
-        // Repository에서 만들어서 호출해야 함.
-        // 예: findTopBySchoolIdOrderByTargetYmDesc(schoolId)
-        return reviewAnalysisRepository.findTopBySchoolIdOrderByTargetYmDesc(schoolId);
     }
 }

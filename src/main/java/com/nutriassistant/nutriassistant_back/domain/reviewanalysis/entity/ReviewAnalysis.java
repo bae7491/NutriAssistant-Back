@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "review_analysis")
-@Getter // 이 어노테이션이 getPositiveCount(), getNegativeCount() 등을 자동으로 만들어줍니다.
+@Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
@@ -33,13 +33,11 @@ public class ReviewAnalysis {
     @Column(name = "sentiment_conf")
     private Float sentimentConf;
 
-    // [수정 1] 긍정 리뷰 개수 컬럼 추가
-    // DB에 positive_count 컬럼이 있어야 합니다.
+    // 긍정 리뷰 개수
     @Column(name = "positive_count")
     private Integer positiveCount;
 
-    // [수정 2] 부정 리뷰 개수 컬럼 추가
-    // DB에 negative_count 컬럼이 있어야 합니다.
+    // 부정 리뷰 개수
     @Column(name = "negative_count")
     private Integer negativeCount;
 
@@ -55,9 +53,4 @@ public class ReviewAnalysis {
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
-
-    // [삭제] public Integer getPositiveCount() {}
-    // [삭제] public Integer getNegativeCount() {}
-    // 이유: 클래스 위에 붙은 @Getter 어노테이션이 이 메서드들을 자동으로 생성해주므로,
-    // 직접 작성하면 중복이거나 에러가 날 수 있어 제거했습니다.
 }
