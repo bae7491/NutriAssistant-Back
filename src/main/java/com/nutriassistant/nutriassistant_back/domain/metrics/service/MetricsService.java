@@ -184,7 +184,7 @@ public class MetricsService {
         // (Leftover 엔티티에 public void update(Double amount) { this.amountKg = amount; } 메서드가 있어야 함)
         // 없다면 아래처럼 save
         /* leftover.setAmountKg(request.getAmount_kg());
-        leftoverRepository.save(leftover);
+        leftoverRepository.save(leftover)
         */
 
         return mapToLeftoverResponse(leftover);
