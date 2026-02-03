@@ -19,9 +19,12 @@ public class SkipMealDto {
 
     @Getter
     public static class UpdateRequest {
-        private Long id;
-        private Integer skipped_count;
-        private Integer total_students;
+        private Long school_id;     // 필수 (누구 학교인지)
+        private LocalDate date;     // 필수 (언제 데이터인지)
+        private String meal_type;   // 필수 (점심인지 저녁인지)
+
+        private Integer skipped_count; // 수정할 값
+        private Integer total_students; // 수정할 값
     }
 
     @Getter

@@ -18,8 +18,11 @@ public class LeftoverDto {
 
     @Getter
     public static class UpdateRequest {
-        private Long id;
-        private Float amount_kg;
+        private Long school_id;
+        private LocalDate date;
+        private String meal_type;
+
+        private Double amount_kg; // 수정할 값
     }
 
     @Getter

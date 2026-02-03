@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 
 @RestController
-@RequestMapping("/metrics") // 이 컨트롤러는 '/metrics'로 시작하는 모든 주소를 담당합니다.
+@RequestMapping("/metrics")
 @RequiredArgsConstructor
 public class MetricsController {
 
@@ -62,6 +62,21 @@ public class MetricsController {
         return ApiResponse.success("최근 30일 결식률 조회 성공", response);
     }
 
+    // [추가] 월간 결식 데이터 조회 (달력용)
+    @GetMapping("/skip-meal/monthly")
+    public ApiResponse<SkipMealDto.PeriodResponse> getSkipMealMonthly(
+            @RequestParam("school_id") Long schoolId,
+            @RequestParam("year") int year,
+            @RequestParam("month") int month,
+            @RequestParam(value = "meal_type", defaultValue = "LUNCH") String mealType) {
+
+        LocalDate start = LocalDate.of(year, month, 1);
+        LocalDate end = start.withDayOfMonth(start.lengthOfMonth());
+
+        SkipMealDto.PeriodResponse response = metricsService.getSkipMealStats(schoolId, mealType, start, end);
+        return ApiResponse.success(year + "년 " + month + "월 결식 데이터 조회 성공", response);
+    }
+
 
     // =================================================================================
     // 2. 잔반률 (Leftover) API
@@ -108,21 +123,32 @@ public class MetricsController {
         return ApiResponse.success("최근 30일 잔반량 조회 성공", response);
     }
 
+    // [추가] 월간 잔반 데이터 조회 (달력용)
+    @GetMapping("/leftover/monthly")
+    public ApiResponse<LeftoverDto.PeriodResponse> getLeftoverMonthly(
+            @RequestParam("school_id") Long schoolId,
+            @RequestParam("year") int year,
+            @RequestParam("month") int month,
+            @RequestParam(value = "meal_type", defaultValue = "LUNCH") String mealType) {
+
+        LocalDate start = LocalDate.of(year, month, 1);
+        LocalDate end = start.withDayOfMonth(start.lengthOfMonth());
+
+        LeftoverDto.PeriodResponse response = metricsService.getLeftoverStats(schoolId, mealType, start, end);
+        return ApiResponse.success(year + "년 " + month + "월 잔반 데이터 조회 성공", response);
+    }
+
 
     // =================================================================================
-    // 3. 만족도 (Satisfaction) API - [여기가 없어서 404가 났던 것입니다!]
+    // 3. 만족도 (Satisfaction) API
     // =================================================================================
 
-    // 1. 최근 30일 만족도 건수 조회
-    // URL: /metrics/satisfaction/count/last-30days
     @GetMapping("/satisfaction/count/last-30days")
     public ApiResponse<SatisfactionDto.CountResponse> getSatisfactionCountLast30Days(
             @RequestParam("school_id") Long schoolId) {
         return ApiResponse.success("성공", metricsService.getSatisfactionCount(schoolId, 30));
     }
 
-    // 2. 최근 30일 만족도 목록(배치) 조회
-    // URL: /metrics/satisfaction/last-30days
     @GetMapping("/satisfaction/last-30days")
     public ApiResponse<SatisfactionDto.BatchListResponse> getSatisfactionListLast30Days(
             @RequestParam("school_id") Long schoolId,
@@ -131,8 +157,6 @@ public class MetricsController {
         return ApiResponse.success("성공", metricsService.getSatisfactionBatchList(schoolId, 30, page, size));
     }
 
-    // 3. 긍정 만족도 건수 조회
-    // URL: /metrics/satisfaction/positive/count
     @GetMapping("/satisfaction/positive/count")
     public ApiResponse<SatisfactionDto.LabelCountResponse> getPositiveCount(
             @RequestParam("school_id") Long schoolId,
@@ -141,8 +165,6 @@ public class MetricsController {
         return ApiResponse.success("성공", metricsService.getSentimentCount(schoolId, "POSITIVE", startDate, endDate));
     }
 
-    // 4. 부정 만족도 건수 조회
-    // URL: /metrics/satisfaction/negative/count
     @GetMapping("/satisfaction/negative/count")
     public ApiResponse<SatisfactionDto.LabelCountResponse> getNegativeCount(
             @RequestParam("school_id") Long schoolId,
@@ -151,8 +173,6 @@ public class MetricsController {
         return ApiResponse.success("성공", metricsService.getSentimentCount(schoolId, "NEGATIVE", startDate, endDate));
     }
 
-    // 5. 만족도 리뷰 내용 조회
-    // URL: /metrics/satisfaction/reviews
     @GetMapping("/satisfaction/reviews")
     public ApiResponse<SatisfactionDto.ReviewListResponse> getReviews(
             @RequestParam("school_id") Long schoolId,
