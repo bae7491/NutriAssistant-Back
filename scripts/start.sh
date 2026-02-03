@@ -7,6 +7,7 @@ export DB_PORT="3306"
 export DB_NAME="nutriassistant"
 export DB_USERNAME="admin"
 export DB_PASSWORD="ktaivle18"
+export FAST_API_URL="172.31.41.226"
 
 cd /home/ec2-user/app
 nohup java -jar build/libs/*.jar > /home/ec2-user/app.log 2>&1 &
