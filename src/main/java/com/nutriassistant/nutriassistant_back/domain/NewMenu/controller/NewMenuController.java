@@ -12,6 +12,7 @@ import com.nutriassistant.nutriassistant_back.domain.NewMenu.service.NewMenuServ
 import com.nutriassistant.nutriassistant_back.global.ApiResponse;
 import com.nutriassistant.nutriassistant_back.global.exception.ErrorResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -89,6 +90,52 @@ public class NewMenuController {
                 since,
                 PageRequest.of(0, size)
         );
+    }
+
+    /**
+     * 신메뉴 목록 조회 (페이지네이션)
+     */
+    @GetMapping("/newfoodinfo")
+    public ResponseEntity<ApiResponse<Page<NewFoodInfoResponse>>> getNewFoodInfoList(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        log.info("📋 신메뉴 목록 조회: page={}, size={}", page, size);
+
+        // page는 1부터 시작하므로 0-based로 변환
+        PageRequest pageRequest = PageRequest.of(Math.max(0, page - 1), size);
+        Page<NewFoodInfoResponse> result = newMenuService.getNewFoodInfoList(pageRequest);
+
+        return ResponseEntity.ok(
+                ApiResponse.success("신메뉴 목록 조회 성공", result)
+        );
+    }
+
+    /**
+     * 신메뉴 상세 조회
+     */
+    @GetMapping("/newfoodinfo/{newFoodId}")
+    public ResponseEntity<ApiResponse<NewFoodInfoResponse>> getNewFoodInfo(
+            @PathVariable String newFoodId
+    ) {
+        try {
+            log.info("🔍 신메뉴 상세 조회: newFoodId={}", newFoodId);
+
+            NewFoodInfoResponse response = newMenuService.getNewFoodInfo(newFoodId);
+
+            return ResponseEntity.ok(
+                    ApiResponse.success("신메뉴 조회 성공", response)
+            );
+
+        } catch (IllegalArgumentException e) {
+            if (e.getMessage() != null && e.getMessage().startsWith("NOT_FOUND:")) {
+                log.warn("⚠️ 신메뉴 없음: {}", newFoodId);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ApiResponse.error("해당 신메뉴를 찾을 수 없습니다.")
+                );
+            }
+            throw e;
+        }
     }
 
     /**
