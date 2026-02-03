@@ -179,9 +179,8 @@ public class MetricsService {
                         request.getSchool_id(), request.getDate(), request.getMeal_type())
                 .orElseThrow(() -> new IllegalArgumentException("해당 날짜의 데이터를 찾을 수 없습니다."));
 
-        // 2. 값 업데이트
-        leftover.update(request.getAmount_kg());
-        // (Leftover 엔티티에 public void update(Double amount) { this.amountKg = amount; } 메서드가 있어야 함)
+        // 2. 값 업데이트 (Double -> Float 변환)
+        leftover.update(request.getAmount_kg().floatValue());
         // 없다면 아래처럼 save
         /* leftover.setAmountKg(request.getAmount_kg());
         leftoverRepository.save(leftover)
