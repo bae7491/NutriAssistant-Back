@@ -85,7 +85,7 @@ public class NewMenuController {
             @RequestParam(defaultValue = "500") int size
     ) {
         LocalDateTime since = LocalDateTime.now().minusDays(days);
-        return boardRepository.findByCategoryAndCreatedAtAfterOrderByCreatedAtDesc(
+        return boardRepository.findByCategoryAndDeletedFalseAndCreatedAtAfterOrderByCreatedAtDesc(
                 CategoryType.NEW_MENU,
                 since,
                 PageRequest.of(0, size)
