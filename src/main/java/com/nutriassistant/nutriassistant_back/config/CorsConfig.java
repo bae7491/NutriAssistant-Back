@@ -16,8 +16,9 @@ public class CorsConfig {
         cfg.setAllowCredentials(true);
         cfg.setAllowedOrigins(List.of(
                 "http://localhost:3000",
-                "http://localhost:5173"
-                // 필요하면 배포 프론트 도메인도 추가: "https://your-frontend.com"
+                "http://localhost:5173",
+                "http://kt-team18-student-prod-web.s3-website.ap-northeast-2.amazonaws.com",
+                "http://kt-team18-school-prod-web.s3-website.ap-northeast-2.amazonaws.com"
         ));
         cfg.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
         cfg.setAllowedHeaders(List.of("*"));
