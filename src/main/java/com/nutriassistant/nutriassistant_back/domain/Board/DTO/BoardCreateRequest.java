@@ -23,7 +23,6 @@ public class BoardCreateRequest {
     @NotNull(message = "작성자 ID는 필수 입력값입니다.")
     private Long authorId;
 
-    @NotBlank(message = "작성자 이름은 필수 입력값입니다.")
     private String authorName;
 
     @NotBlank(message = "작성자 유형은 필수 입력값입니다.")

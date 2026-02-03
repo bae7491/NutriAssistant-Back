@@ -1,6 +1,8 @@
 package com.nutriassistant.nutriassistant_back.domain.NewMenu.repository;
 
 import com.nutriassistant.nutriassistant_back.domain.NewMenu.entity.NewFoodInfo;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -21,4 +23,6 @@ public interface NewFoodInfoRepository extends JpaRepository<NewFoodInfo, Long> 
     Integer findMaxFoodCodeNumber();
 
     List<NewFoodInfo> findByDeletedFalse();
+
+    Page<NewFoodInfo> findByDeletedFalseOrderByCreatedAtDesc(Pageable pageable);
 }

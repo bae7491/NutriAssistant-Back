@@ -90,7 +90,8 @@ public class MealPlanMonthlyResponse {
     @Getter
     @Builder
     public static class AllergenSummary {
-        private List<Integer> unique;
+        @JsonProperty("unique")
+        private List<Integer> uniqueAllergens;
 
         @JsonProperty("has_allergen_5")
         private Boolean hasAllergen5;

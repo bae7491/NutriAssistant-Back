@@ -88,6 +88,11 @@ public class MealPlanService {
         return mealPlanRepository.findById(mealPlanId);
     }
 
+    @Transactional(readOnly = true)
+    public Optional<MealPlan> findBySchoolIdAndYearAndMonth(Long schoolId, Integer year, Integer month) {
+        return mealPlanRepository.findBySchoolIdAndYearAndMonth(schoolId, year, month);
+    }
+
     // =========================================================================
     // 1. [생성] 월간 식단 생성 (FastAPI 호출 -> DB 저장)
     // =========================================================================
@@ -515,7 +520,7 @@ public class MealPlanService {
         }
 
         return MealPlanMonthlyResponse.AllergenSummary.builder()
-                .unique(new ArrayList<>(uniqueAllergens))
+                .uniqueAllergens(new ArrayList<>(uniqueAllergens))
                 .hasAllergen5(uniqueAllergens.contains(5))
                 .build();
     }

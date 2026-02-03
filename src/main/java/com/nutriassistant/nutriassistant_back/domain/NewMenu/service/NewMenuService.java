@@ -11,6 +11,8 @@ import com.nutriassistant.nutriassistant_back.domain.NewMenu.entity.NewFoodInfo;
 import com.nutriassistant.nutriassistant_back.domain.NewMenu.repository.NewFoodInfoRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -393,6 +395,28 @@ public class NewMenuService {
         log.info("✅ 신메뉴 수정 완료: {} ({})", saved.getFoodName(), saved.getFoodCode());
 
         return toNewFoodInfoResponse(saved);
+    }
+
+    /**
+     * 신메뉴 목록 조회 (페이지네이션)
+     */
+    public Page<NewFoodInfoResponse> getNewFoodInfoList(Pageable pageable) {
+        Page<NewFoodInfo> page = newFoodInfoRepository.findByDeletedFalseOrderByCreatedAtDesc(pageable);
+        return page.map(this::toNewFoodInfoResponse);
+    }
+
+    /**
+     * 신메뉴 상세 조회
+     */
+    public NewFoodInfoResponse getNewFoodInfo(String newFoodId) {
+        NewFoodInfo foodInfo = newFoodInfoRepository.findByFoodCode(newFoodId)
+                .orElseThrow(() -> new IllegalArgumentException("NOT_FOUND:" + newFoodId));
+
+        if (Boolean.TRUE.equals(foodInfo.getDeleted())) {
+            throw new IllegalArgumentException("NOT_FOUND:" + newFoodId);
+        }
+
+        return toNewFoodInfoResponse(foodInfo);
     }
 
     private NewFoodInfoResponse toNewFoodInfoResponse(NewFoodInfo foodInfo) {

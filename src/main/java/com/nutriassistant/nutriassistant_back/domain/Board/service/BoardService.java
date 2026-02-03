@@ -3,6 +3,10 @@ package com.nutriassistant.nutriassistant_back.domain.Board.service;
 import com.nutriassistant.nutriassistant_back.domain.Attachment.entity.Attachment;
 import com.nutriassistant.nutriassistant_back.domain.Attachment.entity.RelatedType;
 import com.nutriassistant.nutriassistant_back.domain.Attachment.repository.AttachmentRepository;
+import com.nutriassistant.nutriassistant_back.domain.Auth.entity.Dietitian;
+import com.nutriassistant.nutriassistant_back.domain.Auth.entity.Student;
+import com.nutriassistant.nutriassistant_back.domain.Auth.repository.DietitianRepository;
+import com.nutriassistant.nutriassistant_back.domain.Auth.repository.StudentRepository;
 import com.nutriassistant.nutriassistant_back.domain.Board.DTO.BoardCreateRequest;
 import com.nutriassistant.nutriassistant_back.domain.Board.DTO.BoardCreateResponse;
 import com.nutriassistant.nutriassistant_back.domain.Board.DTO.BoardDeleteResponse;
@@ -31,13 +35,19 @@ public class BoardService {
     private final BoardRepository boardRepository;
     private final AttachmentRepository attachmentRepository;
     private final NewMenuService newMenuService;
+    private final DietitianRepository dietitianRepository;
+    private final StudentRepository studentRepository;
 
     public BoardService(BoardRepository boardRepository,
                         AttachmentRepository attachmentRepository,
-                        NewMenuService newMenuService) {
+                        NewMenuService newMenuService,
+                        DietitianRepository dietitianRepository,
+                        StudentRepository studentRepository) {
         this.boardRepository = boardRepository;
         this.attachmentRepository = attachmentRepository;
         this.newMenuService = newMenuService;
+        this.dietitianRepository = dietitianRepository;
+        this.studentRepository = studentRepository;
     }
 
     @Transactional
@@ -60,14 +70,20 @@ public class BoardService {
             throw new IllegalArgumentException("유효하지 않은 작성자 유형입니다: " + request.getAuthorType());
         }
 
-        // 3. 게시글 저장
+        // 3. 작성자 이름 조회 (authorName이 없는 경우)
+        String authorName = request.getAuthorName();
+        if (authorName == null || authorName.isBlank()) {
+            authorName = resolveAuthorName(request.getAuthorId(), authorType);
+        }
+
+        // 4. 게시글 저장
         Board board = new Board(
                 schoolId,
                 category,
                 request.getTitle(),
                 request.getContent(),
                 request.getAuthorId(),
-                request.getAuthorName(),
+                authorName,
                 authorType
         );
         Board savedBoard = boardRepository.save(board);
@@ -351,6 +367,19 @@ public class BoardService {
                 .deleteType("SOFT")
                 .deletedAt(board.getDeletedAt())
                 .build();
+    }
+
+    private String resolveAuthorName(Long authorId, AuthorType authorType) {
+        if (authorType == AuthorType.DIETITIAN) {
+            Dietitian dietitian = dietitianRepository.findById(authorId)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 영양사 ID입니다: " + authorId));
+            return dietitian.getName();
+        } else if (authorType == AuthorType.STUDENT) {
+            Student student = studentRepository.findById(authorId)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 학생 ID입니다: " + authorId));
+            return student.getName();
+        }
+        throw new IllegalArgumentException("알 수 없는 작성자 유형입니다: " + authorType);
     }
 
     public static class BoardNotFoundException extends RuntimeException {

@@ -109,15 +109,39 @@ public class MealPlanController {
 
     /**
      * 월간 식단표 조회
+     *
+     * 사용 방법:
+     * GET /mealplan/monthly?year=2026&month=6
      */
-    @GetMapping("/monthly/{mealPlanId}")
+    @GetMapping("/monthly")
     public ResponseEntity<ApiResponse<MealPlanMonthlyResponse>> getMealPlanMonthly(
-            @PathVariable Long mealPlanId
+            @RequestParam Integer year,
+            @RequestParam Integer month,
+            Authentication authentication
     ) {
         try {
-            log.info("🔍 월간 식단표 조회 API 호출: mealPlanId={}", mealPlanId);
+            Long schoolId = extractSchoolIdFromAuth(authentication);
+            log.info("🔍 월간 식단표 조회 API 호출: schoolId={}, year={}, month={}", schoolId, year, month);
 
-            return mealPlanService.findById(mealPlanId)
+            // 유효성 검사
+            if (year < 2000 || year > 2100) {
+                return ResponseEntity.badRequest().body(
+                        ApiResponse.error(
+                                "연도 값이 유효하지 않습니다.",
+                                new ApiResponse.ErrorDetails("year", "invalid_value")
+                        )
+                );
+            }
+            if (month < 1 || month > 12) {
+                return ResponseEntity.badRequest().body(
+                        ApiResponse.error(
+                                "월 값이 유효하지 않습니다.",
+                                new ApiResponse.ErrorDetails("month", "invalid_value")
+                        )
+                );
+            }
+
+            return mealPlanService.findBySchoolIdAndYearAndMonth(schoolId, year, month)
                     .map(mealPlan -> {
                         MealPlanMonthlyResponse response = mealPlanService.toMonthlyResponse(mealPlan);
                         return ResponseEntity.ok(
@@ -125,11 +149,11 @@ public class MealPlanController {
                         );
                     })
                     .orElseGet(() -> {
-                        log.warn("⚠️ 월간 식단표를 찾을 수 없음: mealPlanId={}", mealPlanId);
+                        log.warn("⚠️ 월간 식단표를 찾을 수 없음: year={}, month={}", year, month);
                         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                                 ApiResponse.error(
                                         "해당 월간 식단표를 찾을 수 없습니다.",
-                                        new ApiResponse.ErrorDetails("mealPlanId", String.valueOf(mealPlanId))
+                                        new ApiResponse.ErrorDetails("year", String.valueOf(year), "month", String.valueOf(month))
                                 )
                         );
                     });
