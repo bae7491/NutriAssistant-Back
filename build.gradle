@@ -25,31 +25,34 @@ repositories {
 }
 
 dependencies {
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    // 1. Spring Boot 기본 스타터 (Web, JPA, Validation)
     implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // 2. Security & 암호화
+    // (로그인 기능을 만들려면 Security Starter가 있는 것이 좋습니다. BCrypt 등 사용)
     implementation 'org.springframework.boot:spring-boot-starter-security'
-	compileOnly 'org.projectlombok:lombok'
-	runtimeOnly 'com.mysql:mysql-connector-j'
-	annotationProcessor 'org.projectlombok:lombok'
-	testImplementation 'org.springframework.boot:spring-boot-starter-test'
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    implementation 'org.springframework.boot:spring-boot-starter-web'
 
-    // ✅ (추가) DTO 검증용
-    implementation 'org.springframework.boot:spring-boot-starter-validation'
-    // ✅ (추가) 비밀번호 해시(BCrypt)용 - security starter 말고 crypto만!
-    implementation 'org.springframework.security:spring-security-crypto'
+    // ✅ [추가] JWT 토큰 생성을 위한 라이브러리 (JJWT)
+    implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5' // JSON 변환용
 
-    // ✅ (추가) Swagger UI - API 문서 자동 생성
+    // 3. DB 관련 (MySQL)
+    runtimeOnly 'com.mysql:mysql-connector-j'
+
+    // 4. 유틸리티 (Lombok)
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // 5. API 문서화 (Swagger UI)
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0'
 
-    compileOnly 'org.projectlombok:lombok'
-    runtimeOnly 'com.mysql:mysql-connector-j'
-    annotationProcessor 'org.projectlombok:lombok'
+    // 6. 테스트
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'org.springframework.security:spring-security-test'
 }
 
 tasks.named('test') {

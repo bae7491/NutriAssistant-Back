@@ -16,6 +16,13 @@ spring:
     init:
       mode: never
 
+neis:
+  api-key: ${NEIS_API_KEY}
+
+jwt:
+  secret: ${JWT_SECRET:VlwEyVHeCcZuQeThWmYqTkPingKeOpQrStUvWxYz1234567890}
+  expiration: ${JWT_EXPIRATION:86400000}
+
 fastapi:
   base-url: http://${FAST_API_URL}:8001
-  internal-token: ""   # FastAPI INTERNAL_TOKEN 쓰면 여기에 넣기
+  internal-token: ${FASTAPI_INTERNAL_TOKEN:}

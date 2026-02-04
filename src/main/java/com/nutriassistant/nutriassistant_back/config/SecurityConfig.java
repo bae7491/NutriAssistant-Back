@@ -1,62 +1,111 @@
 package com.nutriassistant.nutriassistant_back.config;
 
+import com.nutriassistant.nutriassistant_back.global.jwt.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-/**
- * Spring Security 설정 클래스
- *
- * 역할:
- * - 애플리케이션의 보안 정책을 정의합니다.
- * - 인증(Authentication)과 인가(Authorization) 규칙을 설정합니다.
- * - CSRF, CORS 등 보안 관련 설정을 관리합니다.
- *
- * 현재 설정:
- * - CSRF 보호 비활성화 (REST API 서버이므로)
- * - 모든 요청 허용 (개발 단계, JWT 구현 후 수정 필요)
- *
- * TODO: JWT 인증 구현 시 수정 필요
- * - JwtAuthenticationFilter 추가
- * - 인증이 필요한 엔드포인트 설정
- * - 예: .requestMatchers("/boards/**").authenticated()
- */
+import java.util.List;
+
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
-    /**
-     * Security Filter Chain 설정
-     *
-     * @param http HttpSecurity 객체
-     * @return 구성된 SecurityFilterChain
-     *
-     * 설정 내용:
-     * 1. csrf().disable() - REST API는 세션을 사용하지 않으므로 CSRF 보호 불필요
-     * 2. authorizeHttpRequests() - URL별 접근 권한 설정
-     *    - /internal/** : 내부 API (서버 간 통신용)
-     *    - /mealplan/** : 급식 관련 API
-     *    - anyRequest().permitAll() : 현재 모든 요청 허용 (개발용)
-     */
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+    }
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            // CSRF 보호 비활성화 (REST API 서버는 stateless하므로 불필요)
-            .csrf(AbstractHttpConfigurer::disable)
+                .csrf(AbstractHttpConfigurer::disable)
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                .authorizeHttpRequests(auth -> auth
+                        // ====================================================
+                        // 1. [전체 공개] 로그인 안 해도 됨
+                        // ====================================================
+                        .requestMatchers(
+                                "/api/auth/**",            // 로그인, 회원가입
+                                "/api/public/**",          // 공용 API
+                                "/api/schools/search/**",  // 학교 검색
+                                "/internal/**",            // AI 서버 연동용
+                                "/api/costs/internal/**"   // 단가 데이터 연동용 (URL 확인 필요)
+                        ).permitAll()
 
-            // URL별 접근 권한 설정
-            .authorizeHttpRequests(auth -> auth
-                // 내부 서버 간 통신용 API - 인증 없이 허용
-                .requestMatchers("/internal/**").permitAll()
-                // 급식 관련 API - 인증 없이 허용
-                .requestMatchers("/mealplan/**").permitAll()
-                // 그 외 모든 요청 - 현재는 모두 허용 (TODO: JWT 구현 후 수정)
-                .anyRequest().permitAll()
-            );
+                        // ====================================================
+                        // 2. [영양사 전용] 관리자 기능 (생성, 수정, 삭제, 분석)
+                        // ====================================================
+                        .requestMatchers(
+                                "/api/dietitian/**",       // 영양사 내 정보
+                                "/api/schools/register",   // 학교 등록
+                                "/api/schools/my",         // 학교 정보 수정
+
+                                // 식단 데이터 관리 (POST, PUT, DELETE, PATCH)
+                                "/mealplan/generate",      // AI 식단 생성
+                                "/mealplan/confirm",       // 식단 확정
+                                "/api/food/**",            // 음식 DB 관리
+                                "/api/menus/cost/**",      // 단가 관리
+                                "/api/reports/**",         // 운영 일지/리포트
+                                "/api/metrics/**",         // 잔반/결식 데이터 등록
+                                "/api/reviews/analysis/**" // 리뷰 분석 결과
+                        ).hasRole("DIETITIAN")
+
+                        // (중요) 식단표 수정/삭제는 영양사만 가능하도록 메서드로 구분
+                        .requestMatchers(HttpMethod.POST, "/mealplan/**").hasRole("DIETITIAN")
+                        .requestMatchers(HttpMethod.PUT, "/mealplan/**").hasRole("DIETITIAN")
+                        .requestMatchers(HttpMethod.PATCH, "/mealplan/**").hasRole("DIETITIAN")
+
+                        // ====================================================
+                        // 3. [학생 전용] 사용자 기능
+                        // ====================================================
+                        .requestMatchers(
+                                "/api/student/**"          // 학생 내 정보
+                        ).hasRole("STUDENT")
+
+                        // ====================================================
+                        // 4. [공통 권한] 로그인한 누구나 (조회 기능)
+                        // ====================================================
+                        .requestMatchers(
+                                "/mealplan/**",            // 식단 조회 (위에서 POST등을 막았으므로 여기는 GET만 남음)
+                                "/api/menus/**",           // 메뉴 상세 조회
+                                "/api/board/**",           // 게시판 조회 (작성 권한은 로직에 따라 분리 가능)
+                                "/api/reviews/**"          // 리뷰 조회
+                        ).authenticated()
+
+                        // 그 외 모든 요청은 인증 필요
+                        .anyRequest().authenticated()
+                );
+
+        http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
+        config.setAllowedOrigins(List.of("http://localhost:3000", "http://localhost:5173")); // 프론트 주소
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+        config.setAllowedHeaders(List.of("*"));
+        config.setAllowCredentials(true);
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return source;
     }
 }

@@ -5,15 +5,16 @@ import com.nutriassistant.nutriassistant_back.domain.Auth.entity.Student;
 
 import java.time.LocalDateTime;
 
+/**
+ * 회원가입 응답 DTO
+ *
+ * 역할:
+ * - 학생 및 영양사 회원가입 성공 시 클라이언트에게 반환할 데이터 구조입니다.
+ */
 public class SignUpResponse {
 
-    /**
-     * ✅ 기존 응답 형태 호환:
-     * { "userId": 1 }
-     */
     private Long userId;
 
-    // ✅ ERD 필드도 함께 내려주기(프론트/검증/디버깅에 유용)
     @JsonProperty("school_id")
     private Long schoolId;
 
@@ -25,7 +26,6 @@ public class SignUpResponse {
     @JsonProperty("class_no")
     private Integer classNo;
 
-    // ✅ 추가: 알레르기 코드 CSV (예: "1,5,6")
     @JsonProperty("allergy_codes")
     private String allergyCodes;
 
@@ -37,6 +37,7 @@ public class SignUpResponse {
 
     public SignUpResponse() {}
 
+    // [학생용] 전체 필드를 포함하는 생성자
     public SignUpResponse(Student student) {
         this.userId = student.getId();
         this.schoolId = student.getSchoolId();
@@ -45,11 +46,19 @@ public class SignUpResponse {
         this.phone = student.getPhone();
         this.grade = student.getGrade();
         this.classNo = student.getClassNo();
-        this.allergyCodes = student.getAllergyCodes();   // ✅ 핵심
+        this.allergyCodes = student.getAllergyCodes();
         this.createdAt = student.getCreatedAt();
         this.updatedAt = student.getUpdatedAt();
     }
 
+    // [영양사용] 필수 식별 정보만 포함하는 생성자 (수정됨)
+    // AuthService.signupDietitian 메서드에서 사용합니다.
+    public SignUpResponse(Long id, String name) {
+        this.userId = id;
+        this.name = name;
+    }
+
+    // Getters & Setters
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
 

@@ -5,8 +5,8 @@ import com.nutriassistant.nutriassistant_back.domain.Auth.DTO.DietitianSignUpReq
 import com.nutriassistant.nutriassistant_back.domain.Auth.DTO.DietitianSignUpResponse;
 import com.nutriassistant.nutriassistant_back.domain.Auth.DTO.DietitianUpdateRequest;
 import com.nutriassistant.nutriassistant_back.domain.Auth.DTO.PasswordChangeRequest;
-import com.nutriassistant.nutriassistant_back.domain.Auth.DTO.SchoolRequest;
-import com.nutriassistant.nutriassistant_back.domain.Auth.DTO.SchoolResponse;
+import com.nutriassistant.nutriassistant_back.domain.School.dto.SchoolRequest;
+import com.nutriassistant.nutriassistant_back.domain.School.dto.SchoolResponse;
 import com.nutriassistant.nutriassistant_back.domain.Auth.service.DietitianService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
