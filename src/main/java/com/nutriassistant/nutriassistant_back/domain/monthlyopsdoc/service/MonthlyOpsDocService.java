@@ -52,11 +52,11 @@ public class MonthlyOpsDocService {
     // 1. [Create] Create Operation Document (Stats -> AI Analysis -> DB Save)
     // =========================================================================
     @Transactional
-    public MonthlyOpsDocDto.Response createMonthlyOpsDoc(MonthlyOpsDocDto.CreateRequest request) {
+    public MonthlyOpsDocDto.Response createMonthlyOpsDoc(MonthlyOpsDocDto.CreateRequest request, Long schoolId) {
 
         // 1-1. Prevent Duplicate Creation
         if (monthlyOpsDocRepository.existsBySchoolIdAndYearAndMonth(
-                request.getSchool_id(), request.getYear(), request.getMonth())) {
+                schoolId, request.getYear(), request.getMonth())) {
             throw new IllegalArgumentException("An operation document for this month already exists.");
         }
 
@@ -69,27 +69,28 @@ public class MonthlyOpsDocService {
         LocalDateTime endDateTime = endDate.atTime(23, 59, 59);
 
         // 1-3. Fetch Statistics Data from DB
-        log.info("📊 Fetching statistics data: {}-{}", request.getYear(), request.getMonth());
+        log.info("📊 Fetching statistics data: {}-{}, schoolId: {}", request.getYear(), request.getMonth(), schoolId);
+        log.info("   Date range: {} ~ {}", startDate, endDate);
 
         List<SkipMeal> lunchSkips = skipMealRepository.findBySchoolIdAndMealTypeAndDateBetweenOrderByDateAsc(
-                request.getSchool_id(), "LUNCH", startDate, endDate);
+                schoolId, "LUNCH", startDate, endDate);
         List<Leftover> lunchLeftovers = leftoverRepository.findBySchoolIdAndMealTypeAndDateBetweenOrderByDateAsc(
-                request.getSchool_id(), "LUNCH", startDate, endDate);
+                schoolId, "LUNCH", startDate, endDate);
 
         List<SkipMeal> dinnerSkips = skipMealRepository.findBySchoolIdAndMealTypeAndDateBetweenOrderByDateAsc(
-                request.getSchool_id(), "DINNER", startDate, endDate);
+                schoolId, "DINNER", startDate, endDate);
         List<Leftover> dinnerLeftovers = leftoverRepository.findBySchoolIdAndMealTypeAndDateBetweenOrderByDateAsc(
-                request.getSchool_id(), "DINNER", startDate, endDate);
+                schoolId, "DINNER", startDate, endDate);
 
         List<Review> monthlyReviews = reviewRepository.findBySchoolIdAndCreatedAtBetween(
-                request.getSchool_id(), startDateTime, endDateTime);
+                schoolId, startDateTime, endDateTime);
 
         log.info("   Lunch Data: {}, Dinner Data: {}", lunchSkips.size(), dinnerSkips.size());
         log.info("   Collected Reviews: {}", monthlyReviews.size());
 
         // 1-4. Construct Payload for FastAPI Request
         Map<String, Object> fastApiPayload = buildFastApiPayload(
-                request,
+                request, schoolId,
                 lunchSkips, lunchLeftovers,
                 dinnerSkips, dinnerLeftovers,
                 monthlyReviews
@@ -124,7 +125,7 @@ public class MonthlyOpsDocService {
 
         // 1-7. Save to DB
         MonthlyOpsDoc doc = MonthlyOpsDoc.builder()
-                .schoolId(request.getSchool_id())
+                .schoolId(schoolId)
                 .title(request.getTitle())
                 .year(request.getYear())
                 .month(request.getMonth())
@@ -135,38 +136,33 @@ public class MonthlyOpsDocService {
         MonthlyOpsDoc savedDoc = monthlyOpsDocRepository.save(doc);
         log.info("💾 Report saved to DB: ID={}", savedDoc.getId());
 
-        return getMonthlyOpsDocDetail(savedDoc.getId());
+        return getMonthlyOpsDocDetail(savedDoc.getId(), schoolId);
     }
 
     /**
      * Constructs the data structure to send to FastAPI.
-     * [Fix] Resolved lambda compilation errors by using explicit lambdas instead of method references.
+     * [Fix] Changed to camelCase to match FastAPI schema (MonthlyReportRequestPayload).
      */
     private Map<String, Object> buildFastApiPayload(
-            MonthlyOpsDocDto.CreateRequest request,
+            MonthlyOpsDocDto.CreateRequest request, Long schoolId,
             List<SkipMeal> lunchSkips, List<Leftover> lunchLeftovers,
             List<SkipMeal> dinnerSkips, List<Leftover> dinnerLeftovers,
             List<Review> reviews) {
 
         Map<String, Object> payload = new HashMap<>();
 
-        // Required field
-        payload.put("school_id", request.getSchool_id());
-
-        // Meta Information (Snake Case)
-        payload.put("user_name", "Admin");
+        // Meta Information (camelCase for FastAPI)
+        payload.put("userName", "Administrator");
         payload.put("year", request.getYear());
         payload.put("month", request.getMonth());
-        payload.put("target_group", "STUDENT");
+        payload.put("targetGroup", "STUDENT");
 
-        // [Fix] Lambda Expression Error Resolved here
-        // Collectors.toMap에서 메서드 참조(Leftover::getDate) 대신 명시적 람다를 사용하여
-        // 컴파일러가 타입을 확실히 추론할 수 있도록 수정했습니다.
+        // Build leftover maps for lookup
         Map<LocalDate, Double> lunchLeftoverMap = lunchLeftovers.stream()
                 .collect(Collectors.toMap(
-                        leftover -> leftover.getDate(),                          // Key
-                        leftover -> leftover.getAmountKg() != null ? leftover.getAmountKg() : 0.0, // Value (Null check)ㅊ
-                        (existing, replacement) -> replacement                   // Merge function (중복 시 최신값)
+                        leftover -> leftover.getDate(),
+                        leftover -> leftover.getAmountKg() != null ? leftover.getAmountKg() : 0.0,
+                        (existing, replacement) -> replacement
                 ));
 
         Map<LocalDate, Double> dinnerLeftoverMap = dinnerLeftovers.stream()
@@ -176,80 +172,118 @@ public class MonthlyOpsDocService {
                         (existing, replacement) -> replacement
                 ));
 
-        // [Fix] daily_analyses Generation
-        List<Map<String, Object>> dailyAnalysesList = new ArrayList<>();
-
-        // Process Lunch Skips -> Daily Analysis
-        for (SkipMeal skip : lunchSkips) {
-            Map<String, Object> analysis = new HashMap<>();
-            analysis.put("date", skip.getDate().toString());
-            analysis.put("menu_name", "Lunch Menu");
-            analysis.put("meal_type", "LUNCH");
-            int served = skip.getTotalStudents() - skip.getSkippedCount();
-            analysis.put("served_count", served);
-            analysis.put("leftover_amount", lunchLeftoverMap.getOrDefault(skip.getDate(), 0.0));
-            analysis.put("satisfaction_score", 0.0);
-
-            dailyAnalysesList.add(analysis);
-        }
-
-        // Process Dinner Skips -> Daily Analysis
-        for (SkipMeal skip : dinnerSkips) {
-            Map<String, Object> analysis = new HashMap<>();
-            analysis.put("date", skip.getDate().toString());
-            analysis.put("menu_name", "Dinner Menu");
-            analysis.put("meal_type", "DINNER");
-            int served = skip.getTotalStudents() - skip.getSkippedCount();
-            analysis.put("served_count", served);
-            analysis.put("leftover_amount", dinnerLeftoverMap.getOrDefault(skip.getDate(), 0.0));
-            analysis.put("satisfaction_score", 0.0);
-
-            dailyAnalysesList.add(analysis);
-        }
-
-        payload.put("daily_analyses", dailyAnalysesList);
-
-        // Daily Data (daily_info) - Compatibility
+        // ========== dailyInfo (camelCase) ==========
         List<Map<String, Object>> dailyInfoList = new ArrayList<>();
 
         for (SkipMeal skip : lunchSkips) {
             Map<String, Object> dailyInfo = new HashMap<>();
             dailyInfo.put("date", skip.getDate().toString());
-            dailyInfo.put("meal_type", "Lunch");
-            dailyInfo.put("served_proxy", skip.getTotalStudents() - skip.getSkippedCount());
-            dailyInfo.put("missed_proxy", skip.getSkippedCount());
-            dailyInfo.put("leftover_kg", lunchLeftoverMap.getOrDefault(skip.getDate(), 0.0));
+            dailyInfo.put("mealType", "중식");
+            dailyInfo.put("servedProxy", skip.getTotalStudents() - skip.getSkippedCount());
+            dailyInfo.put("missedProxy", skip.getSkippedCount());
+            dailyInfo.put("leftoverKg", lunchLeftoverMap.getOrDefault(skip.getDate(), 0.0));
             dailyInfoList.add(dailyInfo);
         }
 
         for (SkipMeal skip : dinnerSkips) {
             Map<String, Object> dailyInfo = new HashMap<>();
             dailyInfo.put("date", skip.getDate().toString());
-            dailyInfo.put("meal_type", "Dinner");
-            dailyInfo.put("served_proxy", skip.getTotalStudents() - skip.getSkippedCount());
-            dailyInfo.put("missed_proxy", skip.getSkippedCount());
-            dailyInfo.put("leftover_kg", dinnerLeftoverMap.getOrDefault(skip.getDate(), 0.0));
+            dailyInfo.put("mealType", "석식");
+            dailyInfo.put("servedProxy", skip.getTotalStudents() - skip.getSkippedCount());
+            dailyInfo.put("missedProxy", skip.getSkippedCount());
+            dailyInfo.put("leftoverKg", dinnerLeftoverMap.getOrDefault(skip.getDate(), 0.0));
             dailyInfoList.add(dailyInfo);
         }
-        payload.put("daily_info", dailyInfoList);
+        payload.put("dailyInfo", dailyInfoList);
 
-        // Reviews List
-        // [Fix] Stream mapping type inference explicit
-        List<Map<String, Object>> reviewList = reviews.stream()
-                .map(r -> {
-                    Map<String, Object> m = new HashMap<>();
-                    m.put("content", r.getContent());
-                    m.put("rating", r.getRating());
-                    // Null safe check for createdAt
-                    m.put("created_at", r.getCreatedAt() != null ? r.getCreatedAt().toString() : "");
-                    return m;
-                })
-                .collect(Collectors.toList());
+        // ========== dailyAnalyses (camelCase with kpis structure) ==========
+        List<Map<String, Object>> dailyAnalysesList = new ArrayList<>();
+        int reviewIndex = 0;
+
+        for (SkipMeal skip : lunchSkips) {
+            Map<String, Object> analysis = new HashMap<>();
+            analysis.put("date", skip.getDate().toString());
+            analysis.put("mealType", "중식");
+
+            // kpis object
+            Map<String, Object> kpis = new HashMap<>();
+            kpis.put("review_count", reviews.size());
+            kpis.put("post_count", 0);
+            kpis.put("avg_rating_5", reviews.isEmpty() ? 0.0 :
+                    reviews.stream().mapToDouble(r -> r.getRating() != null ? r.getRating() : 0.0).average().orElse(0.0));
+            kpis.put("avg_review_sentiment", 0.5);
+            kpis.put("avg_post_sentiment", 0.0);
+            kpis.put("overall_sentiment", 0.5);
+            analysis.put("kpis", kpis);
+
+            // distributions object
+            Map<String, Object> distributions = new HashMap<>();
+            Map<String, Integer> reviewDist = new HashMap<>();
+            reviewDist.put("positive", 0);
+            reviewDist.put("neutral", reviews.size());
+            reviewDist.put("negative", 0);
+            distributions.put("reviews", reviewDist);
+            distributions.put("posts", new HashMap<>());
+            distributions.put("post_categories", new HashMap<>());
+            analysis.put("distributions", distributions);
+
+            analysis.put("top_aspects", new ArrayList<>());
+            analysis.put("top_negative_aspects", new ArrayList<>());
+            analysis.put("top_issues", new ArrayList<>());
+            analysis.put("alerts", new ArrayList<>());
+
+            dailyAnalysesList.add(analysis);
+        }
+
+        for (SkipMeal skip : dinnerSkips) {
+            Map<String, Object> analysis = new HashMap<>();
+            analysis.put("date", skip.getDate().toString());
+            analysis.put("mealType", "석식");
+
+            Map<String, Object> kpis = new HashMap<>();
+            kpis.put("review_count", 0);
+            kpis.put("post_count", 0);
+            kpis.put("avg_rating_5", 0.0);
+            kpis.put("avg_review_sentiment", 0.0);
+            kpis.put("avg_post_sentiment", 0.0);
+            kpis.put("overall_sentiment", 0.0);
+            analysis.put("kpis", kpis);
+
+            Map<String, Object> distributions = new HashMap<>();
+            distributions.put("reviews", new HashMap<>());
+            distributions.put("posts", new HashMap<>());
+            distributions.put("post_categories", new HashMap<>());
+            analysis.put("distributions", distributions);
+
+            analysis.put("top_aspects", new ArrayList<>());
+            analysis.put("top_negative_aspects", new ArrayList<>());
+            analysis.put("top_issues", new ArrayList<>());
+            analysis.put("alerts", new ArrayList<>());
+
+            dailyAnalysesList.add(analysis);
+        }
+        payload.put("dailyAnalyses", dailyAnalysesList);
+
+        // ========== reviews (camelCase) ==========
+        List<Map<String, Object>> reviewList = new ArrayList<>();
+        int idx = 0;
+        for (Review r : reviews) {
+            Map<String, Object> m = new HashMap<>();
+            String dateStr = r.getCreatedAt() != null ? r.getCreatedAt().toLocalDate().toString() : "";
+            m.put("reviewId", String.format("R-%s-%04d", dateStr.replace("-", ""), ++idx));
+            m.put("date", dateStr);
+            m.put("mealType", "중식");
+            m.put("rating", r.getRating() != null ? r.getRating() : 0.0);
+            m.put("content", r.getContent() != null ? r.getContent() : "");
+            reviewList.add(m);
+        }
         payload.put("reviews", reviewList);
 
-        // Empty Arrays
-        payload.put("meal_plan", new ArrayList<>());
+        // ========== Empty arrays for optional fields ==========
+        payload.put("mealPlan", new ArrayList<>());
         payload.put("posts", new ArrayList<>());
+        payload.put("reviewAnalyses", new ArrayList<>());
+        payload.put("postAnalyses", new ArrayList<>());
 
         return payload;
     }
@@ -284,9 +318,14 @@ public class MonthlyOpsDocService {
     // =========================================================================
     // 3. Detail Retrieval
     // =========================================================================
-    public MonthlyOpsDocDto.Response getMonthlyOpsDocDetail(Long id) {
+    public MonthlyOpsDocDto.Response getMonthlyOpsDocDetail(Long id, Long schoolId) {
         MonthlyOpsDoc doc = monthlyOpsDocRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Operation document not found."));
+
+        // schoolId 검증: 본인 학교 문서만 조회 가능
+        if (!doc.getSchoolId().equals(schoolId)) {
+            throw new IllegalArgumentException("Operation document not found.");
+        }
 
         List<FileAttachment> attachments = fileAttachmentRepository
                 .findAllByRelatedTypeAndRelatedId("OPS", id);

@@ -12,6 +12,8 @@ public class MonthlyOpsDocDto {
     // =================================================================
     // 1. 요청 (Request) DTO
     // =================================================================
+    // [수정] 생성 요청 DTO
+    // 프론트엔드는 연/월만 보내면 됩니다. (school_id는 JWT에서 추출, 내용과 파일은 백엔드가 생성)
     @Getter
     @Setter
     @NoArgsConstructor
@@ -22,9 +24,10 @@ public class MonthlyOpsDocDto {
         @JsonProperty("school_id")
         private Long school_id;
 
+        // school_id는 JWT에서 자동 추출
+        private String title;
         private Integer year;
         private Integer month;
-        private String title;
     }
 
     // =================================================================

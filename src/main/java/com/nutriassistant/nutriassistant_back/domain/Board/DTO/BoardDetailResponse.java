@@ -1,5 +1,6 @@
 package com.nutriassistant.nutriassistant_back.domain.Board.DTO;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -11,7 +12,10 @@ import java.util.List;
 public class BoardDetailResponse {
 
     private Long id;
+
+    @JsonProperty("school_id")
     private Long schoolId;
+
     private String category;
     private String title;
     private String content;

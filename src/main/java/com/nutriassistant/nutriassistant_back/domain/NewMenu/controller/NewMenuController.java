@@ -10,6 +10,8 @@ import com.nutriassistant.nutriassistant_back.domain.NewMenu.DTO.NewFoodInfoUpda
 import com.nutriassistant.nutriassistant_back.domain.NewMenu.DTO.NewMenuAnalysisResponse;
 import com.nutriassistant.nutriassistant_back.domain.NewMenu.service.NewMenuService;
 import com.nutriassistant.nutriassistant_back.global.ApiResponse;
+import com.nutriassistant.nutriassistant_back.global.auth.CurrentUser;
+import com.nutriassistant.nutriassistant_back.global.auth.UserContext;
 import com.nutriassistant.nutriassistant_back.global.exception.ErrorResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -41,15 +43,26 @@ public class NewMenuController {
      * 신메뉴 분석 요청
      * 특정 게시글에 대해 FastAPI를 통한 신메뉴 분석을 수행
      *
+     * @param user JWT 토큰에서 추출한 사용자 정보
      * @param boardId 게시글 ID
      * @return 분석 결과
      */
     @PostMapping("/new-menu/analyze/{boardId}")
-    public ResponseEntity<?> analyzeNewMenu(@PathVariable Long boardId) {
-        log.info("🤖 신메뉴 분석 요청: boardId={}", boardId);
+    public ResponseEntity<?> analyzeNewMenu(
+            @CurrentUser UserContext user,
+            @PathVariable Long boardId) {
+        log.info("🤖 신메뉴 분석 요청: schoolId={}, boardId={}", user.getSchoolId(), boardId);
 
         Board board = boardRepository.findById(boardId).orElse(null);
         if (board == null) {
+            return ResponseEntity.badRequest().body(
+                    ErrorResponse.of(404, "NOT_FOUND", "BOARD_002",
+                            "게시글을 찾을 수 없습니다: " + boardId, "/new-menu/analyze/" + boardId)
+            );
+        }
+
+        // schoolId 검증: 본인 학교 게시글만 분석 가능
+        if (!board.getSchoolId().equals(user.getSchoolId())) {
             return ResponseEntity.badRequest().body(
                     ErrorResponse.of(404, "NOT_FOUND", "BOARD_002",
                             "게시글을 찾을 수 없습니다: " + boardId, "/new-menu/analyze/" + boardId)
@@ -97,14 +110,15 @@ public class NewMenuController {
      */
     @GetMapping("/newfoodinfo")
     public ResponseEntity<ApiResponse<Page<NewFoodInfoResponse>>> getNewFoodInfoList(
+            @CurrentUser UserContext user,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
-        log.info("📋 신메뉴 목록 조회: page={}, size={}", page, size);
+        log.info("📋 신메뉴 목록 조회: schoolId={}, page={}, size={}", user.getSchoolId(), page, size);
 
         // page는 1부터 시작하므로 0-based로 변환
         PageRequest pageRequest = PageRequest.of(Math.max(0, page - 1), size);
-        Page<NewFoodInfoResponse> result = newMenuService.getNewFoodInfoList(pageRequest);
+        Page<NewFoodInfoResponse> result = newMenuService.getNewFoodInfoList(pageRequest, user.getSchoolId());
 
         return ResponseEntity.ok(
                 ApiResponse.success("신메뉴 목록 조회 성공", result)
@@ -116,12 +130,13 @@ public class NewMenuController {
      */
     @GetMapping("/newfoodinfo/{newFoodId}")
     public ResponseEntity<ApiResponse<NewFoodInfoResponse>> getNewFoodInfo(
+            @CurrentUser UserContext user,
             @PathVariable String newFoodId
     ) {
         try {
-            log.info("🔍 신메뉴 상세 조회: newFoodId={}", newFoodId);
+            log.info("🔍 신메뉴 상세 조회: schoolId={}, newFoodId={}", user.getSchoolId(), newFoodId);
 
-            NewFoodInfoResponse response = newMenuService.getNewFoodInfo(newFoodId);
+            NewFoodInfoResponse response = newMenuService.getNewFoodInfo(newFoodId, user.getSchoolId());
 
             return ResponseEntity.ok(
                     ApiResponse.success("신메뉴 조회 성공", response)
@@ -143,12 +158,13 @@ public class NewMenuController {
      */
     @PostMapping("/newfoodinfo")
     public ResponseEntity<ApiResponse<NewFoodInfoResponse>> createNewFoodInfo(
+            @CurrentUser UserContext user,
             @Validated @RequestBody NewFoodInfoCreateRequest request
     ) {
         try {
-            log.info("📝 신메뉴 등록 요청: name={}", request.getName());
+            log.info("📝 신메뉴 등록 요청: schoolId={}, name={}", user.getSchoolId(), request.getName());
 
-            NewFoodInfoResponse response = newMenuService.createNewFoodInfo(request);
+            NewFoodInfoResponse response = newMenuService.createNewFoodInfo(request, user.getSchoolId());
 
             return ResponseEntity.ok(
                     ApiResponse.success("신메뉴가 생성되었습니다.", response)
@@ -180,13 +196,14 @@ public class NewMenuController {
      */
     @PatchMapping("/newfoodinfo/{newMenuId}")
     public ResponseEntity<ApiResponse<NewFoodInfoResponse>> updateNewFoodInfo(
+            @CurrentUser UserContext user,
             @PathVariable String newMenuId,
             @RequestBody NewFoodInfoUpdateRequest request
     ) {
         try {
-            log.info("✏️ 신메뉴 수정 요청: newMenuId={}", newMenuId);
+            log.info("✏️ 신메뉴 수정 요청: schoolId={}, newMenuId={}", user.getSchoolId(), newMenuId);
 
-            NewFoodInfoResponse response = newMenuService.updateNewFoodInfo(newMenuId, request);
+            NewFoodInfoResponse response = newMenuService.updateNewFoodInfo(newMenuId, request, user.getSchoolId());
 
             return ResponseEntity.ok(
                     ApiResponse.success("신메뉴가 수정되었습니다.", response)
@@ -227,12 +244,13 @@ public class NewMenuController {
      */
     @DeleteMapping("/newfoodinfo/{newFoodId}")
     public ResponseEntity<ApiResponse<NewFoodInfoDeleteResponse>> deleteNewFoodInfo(
+            @CurrentUser UserContext user,
             @PathVariable String newFoodId
     ) {
         try {
-            log.info("🗑️ 신메뉴 삭제 요청: newFoodId={}", newFoodId);
+            log.info("🗑️ 신메뉴 삭제 요청: schoolId={}, newFoodId={}", user.getSchoolId(), newFoodId);
 
-            NewFoodInfoDeleteResponse response = newMenuService.deleteNewFoodInfo(newFoodId);
+            NewFoodInfoDeleteResponse response = newMenuService.deleteNewFoodInfo(newFoodId, user.getSchoolId());
 
             return ResponseEntity.ok(
                     ApiResponse.success("신메뉴가 삭제되었습니다.", response)

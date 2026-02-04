@@ -161,7 +161,7 @@ public class BoardService {
     }
 
     @Transactional(readOnly = true)
-    public BoardListResponse getBoardList(String category, String keyword, int page, int size) {
+    public BoardListResponse getBoardList(Long schoolId, String category, String keyword, int page, int size) {
         CategoryType categoryType = null;
         if (category != null && !category.isBlank()) {
             try {
@@ -172,6 +172,7 @@ public class BoardService {
         }
 
         Page<Board> boardPage = boardRepository.findByFilters(
+                schoolId,
                 categoryType,
                 keyword,
                 PageRequest.of(page, size)
@@ -211,14 +212,19 @@ public class BoardService {
     }
 
     @Transactional
-    public BoardDetailResponse getBoardDetail(Long boardId, Long currentUserId) {
-        log.info("📖 게시글 상세 조회: boardId={}", boardId);
+    public BoardDetailResponse getBoardDetail(Long boardId, Long schoolId, Long currentUserId) {
+        log.info("📖 게시글 상세 조회: boardId={}, schoolId={}", boardId, schoolId);
 
         Board board = boardRepository.findById(boardId)
                 .orElseThrow(() -> new BoardNotFoundException("해당 게시글을 찾을 수 없습니다."));
 
         if (board.getDeleted()) {
             throw new BoardDeletedException("삭제된 게시글입니다.");
+        }
+
+        // school_id 필터링: 본인 학교 게시글만 조회 가능
+        if (!board.getSchoolId().equals(schoolId)) {
+            throw new BoardNotFoundException("해당 게시글을 찾을 수 없습니다.");
         }
 
         // 조회수 증가
@@ -265,8 +271,8 @@ public class BoardService {
     }
 
     @Transactional
-    public BoardCreateResponse updateBoard(Long boardId, BoardUpdateRequest request, Long currentUserId) {
-        log.info("✏️ 게시글 수정 요청: boardId={}", boardId);
+    public BoardCreateResponse updateBoard(Long boardId, Long schoolId, BoardUpdateRequest request, Long currentUserId) {
+        log.info("✏️ 게시글 수정 요청: boardId={}, schoolId={}", boardId, schoolId);
 
         // 1. 게시글 조회
         Board board = boardRepository.findById(boardId)
@@ -276,7 +282,12 @@ public class BoardService {
             throw new BoardDeletedException("삭제된 게시글입니다.");
         }
 
-        // 2. 권한 확인 (작성자만 수정 가능)
+        // 2. school_id 검증 (본인 학교 게시글만 수정 가능)
+        if (!board.getSchoolId().equals(schoolId)) {
+            throw new BoardNotFoundException("존재하지 않는 게시글입니다.");
+        }
+
+        // 3. 권한 확인 (작성자만 수정 가능)
         if (!board.getAuthorId().equals(currentUserId)) {
             throw new BoardForbiddenException("게시글 수정 권한이 없습니다.");
         }
@@ -339,8 +350,8 @@ public class BoardService {
     }
 
     @Transactional
-    public BoardDeleteResponse deleteBoard(Long boardId, Long currentUserId) {
-        log.info("🗑️ 게시글 삭제 요청: boardId={}, userId={}", boardId, currentUserId);
+    public BoardDeleteResponse deleteBoard(Long boardId, Long schoolId, Long currentUserId) {
+        log.info("🗑️ 게시글 삭제 요청: boardId={}, schoolId={}, userId={}", boardId, schoolId, currentUserId);
 
         // 1. 게시글 조회
         Board board = boardRepository.findById(boardId)
@@ -351,7 +362,12 @@ public class BoardService {
             throw new BoardNotFoundException("해당 게시글을 찾을 수 없습니다.");
         }
 
-        // 3. 권한 확인 (작성자만 삭제 가능)
+        // 3. school_id 검증 (본인 학교 게시글만 삭제 가능)
+        if (!board.getSchoolId().equals(schoolId)) {
+            throw new BoardNotFoundException("해당 게시글을 찾을 수 없습니다.");
+        }
+
+        // 4. 권한 확인 (작성자만 삭제 가능)
         if (!board.getAuthorId().equals(currentUserId)) {
             throw new BoardForbiddenException("게시글 삭제 권한이 없습니다.");
         }

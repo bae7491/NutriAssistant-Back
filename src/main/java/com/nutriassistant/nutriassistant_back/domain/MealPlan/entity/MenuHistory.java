@@ -22,6 +22,9 @@ public class MenuHistory {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "school_id", nullable = false)
+    private Long schoolId;
+
     @Column(nullable = false)
     private String mealDate; // 예: "2026-03-03"
 

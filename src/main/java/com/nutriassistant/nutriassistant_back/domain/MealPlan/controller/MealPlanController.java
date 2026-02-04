@@ -8,10 +8,11 @@ import com.nutriassistant.nutriassistant_back.domain.MealPlan.entity.MealType;
 import com.nutriassistant.nutriassistant_back.domain.MealPlan.service.AllergenService;
 import com.nutriassistant.nutriassistant_back.domain.MealPlan.service.MealPlanService;
 import com.nutriassistant.nutriassistant_back.global.ApiResponse;
+import com.nutriassistant.nutriassistant_back.global.auth.CurrentUser;
+import com.nutriassistant.nutriassistant_back.global.auth.UserContext;
 import com.nutriassistant.nutriassistant_back.global.exception.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.tomcat.util.net.openssl.ciphers.Authentication;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -46,12 +47,11 @@ public class MealPlanController {
      */
     @PostMapping
     public ResponseEntity<ApiResponse<List<MealPlanGenerateResponse>>> generateMealPlan(
-            @Validated @RequestBody MealPlanGenerateRequest request,
-            Authentication authentication
+            @CurrentUser UserContext user,
+            @Validated @RequestBody MealPlanGenerateRequest request
     ) {
         try {
-            // TODO: JWT에서 schoolId 추출
-            Long schoolId = extractSchoolIdFromAuth(authentication);
+            Long schoolId = user.getSchoolId();
 
             log.info("🎯 식단 생성 API 호출: 학교 ID={}, 연도={}, 월={}",
                     schoolId, request.getYear(), request.getMonth());
@@ -100,12 +100,6 @@ public class MealPlanController {
         }
     }
 
-    /**
-     * JWT에서 학교 ID 추출 (TODO: 실제 JWT 구현 시 수정 필요)
-     */
-    private Long extractSchoolIdFromAuth(Authentication authentication) {
-        return 1L;
-    }
 
     /**
      * 월간 식단표 조회
@@ -115,12 +109,12 @@ public class MealPlanController {
      */
     @GetMapping("/monthly")
     public ResponseEntity<ApiResponse<MealPlanMonthlyResponse>> getMealPlanMonthly(
+            @CurrentUser UserContext user,
             @RequestParam Integer year,
-            @RequestParam Integer month,
-            Authentication authentication
+            @RequestParam Integer month
     ) {
         try {
-            Long schoolId = extractSchoolIdFromAuth(authentication);
+            Long schoolId = user.getSchoolId();
             log.info("🔍 월간 식단표 조회 API 호출: schoolId={}, year={}, month={}", schoolId, year, month);
 
             // 유효성 검사
@@ -176,12 +170,12 @@ public class MealPlanController {
      */
     @GetMapping("/menus/{menuDate}/{mealType}")
     public ResponseEntity<ApiResponse<MealPlanDetailResponse>> getMealPlanDetail(
+            @CurrentUser UserContext user,
             @PathVariable String menuDate,
-            @PathVariable String mealType,
-            Authentication authentication
+            @PathVariable String mealType
     ) {
         try {
-            Long schoolId = extractSchoolIdFromAuth(authentication);
+            Long schoolId = user.getSchoolId();
             log.info("🔍 일간 식단표 상세 조회 API 호출: schoolId={}, menuDate={}, mealType={}",
                     schoolId, menuDate, mealType);
 
@@ -254,12 +248,12 @@ public class MealPlanController {
      */
     @GetMapping("/weekly")
     public ResponseEntity<ApiResponse<MealPlanWeeklyResponse>> getMealPlanWeekly(
+            @CurrentUser UserContext user,
             @RequestParam(required = false) String date,
-            @RequestParam(required = false, defaultValue = "0") Integer offset,
-            Authentication authentication
+            @RequestParam(required = false, defaultValue = "0") Integer offset
     ) {
         try {
-            Long schoolId = extractSchoolIdFromAuth(authentication);
+            Long schoolId = user.getSchoolId();
 
             // 기준 날짜 결정
             LocalDate baseDate;
@@ -328,11 +322,11 @@ public class MealPlanController {
      */
     @PutMapping("/ai-replace")
     public ResponseEntity<ApiResponse<MealPlanAIReplaceResponse>> replaceMenuWithAi(
-            @Validated @RequestBody MealPlanAIReplaceRequest request,
-            Authentication authentication
+            @CurrentUser UserContext user,
+            @Validated @RequestBody MealPlanAIReplaceRequest request
     ) {
         try {
-            Long schoolId = extractSchoolIdFromAuth(authentication);
+            Long schoolId = user.getSchoolId();
 
             // 날짜 파싱
             LocalDate date;
@@ -392,19 +386,19 @@ public class MealPlanController {
      */
     @PatchMapping("/{mealPlanId}/menus/{menuId}")
     public ResponseEntity<ApiResponse<MealPlanManualUpdateResponse>> updateMenuManually(
+            @CurrentUser UserContext user,
             @PathVariable Long mealPlanId,
             @PathVariable Long menuId,
-            @Validated @RequestBody MealPlanManualUpdateRequest request,
-            Authentication authentication
+            @Validated @RequestBody MealPlanManualUpdateRequest request
     ) {
         try {
-            Long schoolId = extractSchoolIdFromAuth(authentication);
+            Long schoolId = user.getSchoolId();
 
             log.info("✏️ 식단표 수동 수정 API 호출: schoolId={}, mealPlanId={}, menuId={}",
                     schoolId, mealPlanId, menuId);
 
             MealPlanManualUpdateResponse response = mealPlanService.updateMenuManually(
-                    mealPlanId, menuId, request.getMenus(), request.getReason()
+                    schoolId, mealPlanId, menuId, request.getMenus(), request.getReason()
             );
 
             return ResponseEntity.ok(ApiResponse.success("식단표 수동 수정이 완료되었습니다.", response));
@@ -440,18 +434,19 @@ public class MealPlanController {
      */
     @GetMapping("/histories")
     public ResponseEntity<ApiResponse<MealPlanHistoryResponse>> getHistories(
+            @CurrentUser UserContext user,
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate,
             @RequestParam(required = false) String actionType,
             @RequestParam(required = false, defaultValue = "0") Integer page,
-            @RequestParam(required = false, defaultValue = "20") Integer size,
-            Authentication authentication
+            @RequestParam(required = false, defaultValue = "20") Integer size
     ) {
         try {
-            log.info("📜 히스토리 조회 API 호출: startDate={}, endDate={}, actionType={}, page={}, size={}",
-                    startDate, endDate, actionType, page, size);
+            Long schoolId = user.getSchoolId();
+            log.info("📜 히스토리 조회 API 호출: schoolId={}, startDate={}, endDate={}, actionType={}, page={}, size={}",
+                    schoolId, startDate, endDate, actionType, page, size);
 
-            MealPlanHistoryResponse response = mealPlanService.getHistories(startDate, endDate, actionType, page, size);
+            MealPlanHistoryResponse response = mealPlanService.getHistories(schoolId, startDate, endDate, actionType, page, size);
 
             if (response.getItems().isEmpty()) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(

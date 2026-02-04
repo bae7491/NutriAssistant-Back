@@ -12,6 +12,9 @@ import java.util.List;
 @Builder
 public class NewFoodInfoResponse {
 
+    @JsonProperty("school_id")
+    private Long schoolId;
+
     @JsonProperty("new_menu_id")
     private String newMenuId;
 

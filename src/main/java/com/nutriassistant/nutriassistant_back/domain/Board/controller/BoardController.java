@@ -125,6 +125,7 @@ public class BoardController {
     })
     @GetMapping
     public ResponseEntity<ApiResponse<BoardListResponse>> getBoardList(
+            @CurrentUser UserContext user,
             @Parameter(description = "페이지 번호 (1부터 시작)", example = "1")
             @RequestParam(defaultValue = "1") int page,
             @Parameter(description = "페이지 크기 (최대 100)", example = "20")
@@ -149,10 +150,10 @@ public class BoardController {
                 );
             }
 
-            log.info("📋 게시글 목록 조회: page={}, size={}, category={}, keyword={}",
-                    page, size, category, keyword);
+            log.info("📋 게시글 목록 조회: schoolId={}, page={}, size={}, category={}, keyword={}",
+                    user.getSchoolId(), page, size, category, keyword);
 
-            BoardListResponse response = boardService.getBoardList(category, keyword, page - 1, size);
+            BoardListResponse response = boardService.getBoardList(user.getSchoolId(), category, keyword, page - 1, size);
 
             return ResponseEntity.ok(
                     ApiResponse.success("게시글 목록 조회 성공", response)
@@ -190,9 +191,9 @@ public class BoardController {
             @PathVariable Long boardId
     ) {
         try {
-            log.info("📖 게시글 상세 조회 API 호출: boardId={}, userId={}", boardId, user.getUserId());
+            log.info("📖 게시글 상세 조회 API 호출: boardId={}, schoolId={}, userId={}", boardId, user.getSchoolId(), user.getUserId());
 
-            BoardDetailResponse response = boardService.getBoardDetail(boardId, user.getUserId());
+            BoardDetailResponse response = boardService.getBoardDetail(boardId, user.getSchoolId(), user.getUserId());
 
             return ResponseEntity.ok(
                     ApiResponse.success("게시글 상세 조회 성공", response)
@@ -240,9 +241,9 @@ public class BoardController {
     ) {
         String path = "/boards/" + boardId;
         try {
-            log.info("✏️ 게시글 수정 API 호출: boardId={}, userId={}", boardId, user.getUserId());
+            log.info("✏️ 게시글 수정 API 호출: boardId={}, schoolId={}, userId={}", boardId, user.getSchoolId(), user.getUserId());
 
-            BoardCreateResponse response = boardService.updateBoard(boardId, request, user.getUserId());
+            BoardCreateResponse response = boardService.updateBoard(boardId, user.getSchoolId(), request, user.getUserId());
 
             return ResponseEntity.ok(response);
 
@@ -325,9 +326,9 @@ public class BoardController {
     ) {
         String path = "/boards/" + boardId;
         try {
-            log.info("🗑️ 게시글 삭제 API 호출: boardId={}, userId={}", boardId, user.getUserId());
+            log.info("🗑️ 게시글 삭제 API 호출: boardId={}, schoolId={}, userId={}", boardId, user.getSchoolId(), user.getUserId());
 
-            BoardDeleteResponse response = boardService.deleteBoard(boardId, user.getUserId());
+            BoardDeleteResponse response = boardService.deleteBoard(boardId, user.getSchoolId(), user.getUserId());
 
             return ResponseEntity.ok(
                     ApiResponse.success("게시글이 삭제되었습니다.", response)

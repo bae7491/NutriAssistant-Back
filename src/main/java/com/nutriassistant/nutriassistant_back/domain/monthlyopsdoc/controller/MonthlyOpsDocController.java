@@ -3,6 +3,8 @@ package com.nutriassistant.nutriassistant_back.domain.monthlyopsdoc.controller;
 import com.nutriassistant.nutriassistant_back.domain.monthlyopsdoc.dto.MonthlyOpsDocDto;
 import com.nutriassistant.nutriassistant_back.domain.monthlyopsdoc.service.MonthlyOpsDocService;
 import com.nutriassistant.nutriassistant_back.global.ApiResponse;
+import com.nutriassistant.nutriassistant_back.global.auth.CurrentUser;
+import com.nutriassistant.nutriassistant_back.global.auth.UserContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,9 +24,10 @@ public class MonthlyOpsDocController {
      */
     @PostMapping
     public ApiResponse<MonthlyOpsDocDto.Response> createMonthlyOpsDoc(
+            @CurrentUser UserContext user,
             @RequestBody MonthlyOpsDocDto.CreateRequest request) {
 
-        MonthlyOpsDocDto.Response response = monthlyOpsDocService.createMonthlyOpsDoc(request);
+        MonthlyOpsDocDto.Response response = monthlyOpsDocService.createMonthlyOpsDoc(request, user.getSchoolId());
         return ApiResponse.success("월간 운영 자료 생성이 시작되었습니다.", response);
     }
 
@@ -34,14 +37,14 @@ public class MonthlyOpsDocController {
      */
     @GetMapping
     public ApiResponse<MonthlyOpsDocDto.ListResponse> getMonthlyOpsDocList(
-            @RequestParam("school_id") Long schoolId,
+            @CurrentUser UserContext user,
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) Integer month,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
 
         MonthlyOpsDocDto.ListResponse response =
-                monthlyOpsDocService.getMonthlyOpsDocList(schoolId, year, month, page, size);
+                monthlyOpsDocService.getMonthlyOpsDocList(user.getSchoolId(), year, month, page, size);
 
         return ApiResponse.success("운영 자료 목록 조회 성공", response);
     }
@@ -52,10 +55,11 @@ public class MonthlyOpsDocController {
      */
     @GetMapping("/{reportId}")
     public ApiResponse<MonthlyOpsDocDto.Response> getMonthlyOpsDocDetail(
+            @CurrentUser UserContext user,
             @PathVariable Long reportId) {
 
         MonthlyOpsDocDto.Response response =
-                monthlyOpsDocService.getMonthlyOpsDocDetail(reportId);
+                monthlyOpsDocService.getMonthlyOpsDocDetail(reportId, user.getSchoolId());
 
         return ApiResponse.success("운영 자료 상세 조회 성공", response);
     }

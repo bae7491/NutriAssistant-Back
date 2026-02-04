@@ -169,9 +169,9 @@ public class MealPlanService {
         }
 
         // ========================================
-        // 2-1. 신메뉴 DB 조회 및 추가
+        // 2-1. 신메뉴 DB 조회 및 추가 (해당 학교의 신메뉴만)
         // ========================================
-        List<NewFoodInfo> newFoodInfoList = newFoodInfoRepository.findByDeletedFalse();
+        List<NewFoodInfo> newFoodInfoList = newFoodInfoRepository.findBySchoolIdAndDeletedFalse(schoolId);
         if (!newFoodInfoList.isEmpty()) {
             List<Map<String, Object>> newMenus = newFoodInfoList.stream()
                     .map(this::convertNewFoodInfoToMap)
@@ -255,9 +255,10 @@ public class MealPlanService {
     // =========================================================================
     // 3. [헬퍼] 공통 내부 메서드
     // =========================================================================
-    private void saveHistory(String date, String type, String oldM, String newM, String reason,
+    private void saveHistory(Long schoolId, String date, String type, String oldM, String newM, String reason,
                              MenuHistory.ActionType action, LocalDateTime menuCreatedAt) {
         MenuHistory history = MenuHistory.builder()
+                .schoolId(schoolId)
                 .mealDate(date)
                 .mealType(type)
                 .oldMenus(oldM)
@@ -790,6 +791,7 @@ public class MealPlanService {
         String newMenus = buildMenuString(savedMenu);
 
         saveHistory(
+                schoolId,
                 date.toString(),
                 mealType.name(),
                 oldMenus,
@@ -815,13 +817,18 @@ public class MealPlanService {
     // =========================================================================
 
     @Transactional
-    public MealPlanManualUpdateResponse updateMenuManually(Long mealPlanId, Long menuId, List<String> newMenus, String reason) {
-        log.info("✏️ 식단표 수동 수정 요청: mealPlanId={}, menuId={}", mealPlanId, menuId);
+    public MealPlanManualUpdateResponse updateMenuManually(Long schoolId, Long mealPlanId, Long menuId, List<String> newMenus, String reason) {
+        log.info("✏️ 식단표 수동 수정 요청: schoolId={}, mealPlanId={}, menuId={}", schoolId, mealPlanId, menuId);
 
         MealPlanMenu menu = mealPlanMenuRepository.findById(menuId)
                 .orElseThrow(() -> new IllegalArgumentException("해당 식단표를 찾을 수 없습니다."));
 
         if (!menu.getMealPlan().getId().equals(mealPlanId)) {
+            throw new IllegalArgumentException("해당 식단표를 찾을 수 없습니다.");
+        }
+
+        // schoolId 검증: 본인 학교 식단표만 수정 가능
+        if (!menu.getMealPlan().getSchoolId().equals(schoolId)) {
             throw new IllegalArgumentException("해당 식단표를 찾을 수 없습니다.");
         }
 
@@ -899,6 +906,7 @@ public class MealPlanService {
         log.info("✅ 수동 수정 완료: menuId={}", savedMenu.getId());
 
         saveHistory(
+                schoolId,
                 savedMenu.getMenuDate().toString(),
                 savedMenu.getMealType().name(),
                 oldMenus,
@@ -962,9 +970,9 @@ public class MealPlanService {
     }
 
     @Transactional(readOnly = true)
-    public MealPlanHistoryResponse getHistories(String startDate, String endDate, String actionType, int page, int size) {
-        log.info("📜 히스토리 조회: startDate={}, endDate={}, actionType={}, page={}, size={}",
-                startDate, endDate, actionType, page, size);
+    public MealPlanHistoryResponse getHistories(Long schoolId, String startDate, String endDate, String actionType, int page, int size) {
+        log.info("📜 히스토리 조회: schoolId={}, startDate={}, endDate={}, actionType={}, page={}, size={}",
+                schoolId, startDate, endDate, actionType, page, size);
 
         PageRequest pageRequest = PageRequest.of(page, size);
         Page<MenuHistory> historyPage;
@@ -989,15 +997,15 @@ public class MealPlanService {
         boolean hasActionType = actionTypeEnum != null && !isAllActionType;
 
         if (hasDateRange && hasActionType) {
-            historyPage = menuHistoryRepository.findByMealDateBetweenAndActionTypeOrderByIdDesc(
-                    startDate, endDate, actionTypeEnum, pageRequest);
+            historyPage = menuHistoryRepository.findBySchoolIdAndMealDateBetweenAndActionTypeOrderByIdDesc(
+                    schoolId, startDate, endDate, actionTypeEnum, pageRequest);
         } else if (hasDateRange) {
-            historyPage = menuHistoryRepository.findByMealDateBetweenOrderByIdDesc(
-                    startDate, endDate, pageRequest);
+            historyPage = menuHistoryRepository.findBySchoolIdAndMealDateBetweenOrderByIdDesc(
+                    schoolId, startDate, endDate, pageRequest);
         } else if (hasActionType) {
-            historyPage = menuHistoryRepository.findByActionTypeOrderByIdDesc(actionTypeEnum, pageRequest);
+            historyPage = menuHistoryRepository.findBySchoolIdAndActionTypeOrderByIdDesc(schoolId, actionTypeEnum, pageRequest);
         } else {
-            historyPage = menuHistoryRepository.findAllByOrderByIdDesc(pageRequest);
+            historyPage = menuHistoryRepository.findBySchoolIdOrderByIdDesc(schoolId, pageRequest);
         }
 
         List<MealPlanHistoryResponse.HistoryItem> items = historyPage.getContent().stream()

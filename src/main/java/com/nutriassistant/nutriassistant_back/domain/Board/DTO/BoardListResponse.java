@@ -29,7 +29,10 @@ public class BoardListResponse {
     @Builder
     public static class BoardItem {
         private Long id;
+
+        @JsonProperty("school_id")
         private Long schoolId;
+
         private String category;
         private String title;
         private Long authorId;

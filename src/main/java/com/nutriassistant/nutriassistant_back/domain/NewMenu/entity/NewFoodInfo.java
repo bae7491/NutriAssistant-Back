@@ -21,6 +21,9 @@ public class NewFoodInfo {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "school_id", nullable = false)
+    private Long schoolId;
+
     @Column(name = "food_code", unique = true)
     private String foodCode;
 

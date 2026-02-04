@@ -89,9 +89,9 @@ public class NewMenuService {
             log.info("✅ FastAPI 신메뉴 분석 응답 수신");
             log.info("📄 응답 내용: {}", result != null ? result.toString() : "null");
 
-            // 분석 결과를 DB에 저장
+            // 분석 결과를 DB에 저장 (board의 schoolId 사용)
             if (result != null) {
-                saveNewFoodInfo(result);
+                saveNewFoodInfo(result, board.getSchoolId());
             }
 
             return NewMenuAnalysisResponse.builder()
@@ -115,7 +115,7 @@ public class NewMenuService {
      * FastAPI 분석 결과를 NewFoodInfo 테이블에 저장
      * 응답 형식: { "generated_at": "...", "new_menus": [...], "analysis_summary": {...} }
      */
-    private void saveNewFoodInfo(JsonNode result) {
+    private void saveNewFoodInfo(JsonNode result, Long schoolId) {
         try {
             // new_menus 배열 추출
             JsonNode newMenus = result.get("new_menus");
@@ -123,7 +123,7 @@ public class NewMenuService {
                 log.info("📦 응답 형식: new_menus 배열 ({}개)", newMenus.size());
                 int savedCount = 0;
                 for (JsonNode item : newMenus) {
-                    if (saveNewFoodInfoItem(item)) {
+                    if (saveNewFoodInfoItem(item, schoolId)) {
                         savedCount++;
                     }
                 }
@@ -142,7 +142,7 @@ public class NewMenuService {
      * 개별 메뉴 항목을 DB에 저장
      * @return 저장 성공 여부
      */
-    private boolean saveNewFoodInfoItem(JsonNode data) {
+    private boolean saveNewFoodInfoItem(JsonNode data, Long schoolId) {
         String menuName = getTextValue(data, "menu_name");
 
         if (menuName == null || menuName.isBlank()) {
@@ -150,9 +150,9 @@ public class NewMenuService {
             return false;
         }
 
-        // 동일한 메뉴명이 이미 존재하면 저장 건너뜀
-        if (newFoodInfoRepository.existsByFoodName(menuName)) {
-            log.info("ℹ️ 이미 존재하는 메뉴: {}", menuName);
+        // 같은 학교 내에서 동일한 메뉴명이 이미 존재하면 저장 건너뜀
+        if (newFoodInfoRepository.existsBySchoolIdAndFoodName(schoolId, menuName)) {
+            log.info("ℹ️ 이미 존재하는 메뉴 (schoolId={}): {}", schoolId, menuName);
             return false;
         }
 
@@ -163,6 +163,7 @@ public class NewMenuService {
         JsonNode nutrition = data.get("nutrition");
 
         NewFoodInfo newFoodInfo = new NewFoodInfo();
+        newFoodInfo.setSchoolId(schoolId);
         newFoodInfo.setFoodCode(foodCode);
         newFoodInfo.setFoodName(menuName);
         newFoodInfo.setCategory(getTextValue(data, "category"));
@@ -274,15 +275,16 @@ public class NewMenuService {
     /**
      * 신메뉴 직접 등록
      */
-    public NewFoodInfoResponse createNewFoodInfo(NewFoodInfoCreateRequest request) {
-        // 중복 체크
-        if (newFoodInfoRepository.existsByFoodName(request.getName())) {
+    public NewFoodInfoResponse createNewFoodInfo(NewFoodInfoCreateRequest request, Long schoolId) {
+        // 같은 학교 내에서 중복 체크
+        if (newFoodInfoRepository.existsBySchoolIdAndFoodName(schoolId, request.getName())) {
             throw new IllegalStateException("DUPLICATE:" + request.getName());
         }
 
         String foodCode = generateNextFoodCode();
 
         NewFoodInfo newFoodInfo = new NewFoodInfo();
+        newFoodInfo.setSchoolId(schoolId);
         newFoodInfo.setFoodCode(foodCode);
         newFoodInfo.setFoodName(request.getName());
         newFoodInfo.setCategory(request.getCategory());
@@ -320,8 +322,8 @@ public class NewMenuService {
     /**
      * 신메뉴 삭제 (Soft Delete)
      */
-    public NewFoodInfoDeleteResponse deleteNewFoodInfo(String newFoodId) {
-        NewFoodInfo foodInfo = newFoodInfoRepository.findByFoodCode(newFoodId)
+    public NewFoodInfoDeleteResponse deleteNewFoodInfo(String newFoodId, Long schoolId) {
+        NewFoodInfo foodInfo = newFoodInfoRepository.findBySchoolIdAndFoodCode(schoolId, newFoodId)
                 .orElseThrow(() -> new IllegalArgumentException("NOT_FOUND:" + newFoodId));
 
         // 이미 삭제된 경우
@@ -347,14 +349,14 @@ public class NewMenuService {
     /**
      * 신메뉴 수정
      */
-    public NewFoodInfoResponse updateNewFoodInfo(String newMenuId, NewFoodInfoUpdateRequest request) {
-        // 기존 메뉴 조회
-        NewFoodInfo foodInfo = newFoodInfoRepository.findByFoodCode(newMenuId)
+    public NewFoodInfoResponse updateNewFoodInfo(String newMenuId, NewFoodInfoUpdateRequest request, Long schoolId) {
+        // 기존 메뉴 조회 (schoolId로 필터링)
+        NewFoodInfo foodInfo = newFoodInfoRepository.findBySchoolIdAndFoodCode(schoolId, newMenuId)
                 .orElseThrow(() -> new IllegalArgumentException("NOT_FOUND:" + newMenuId));
 
-        // 이름 변경 시 중복 체크
+        // 이름 변경 시 같은 학교 내에서 중복 체크
         if (request.getName() != null && !request.getName().equals(foodInfo.getFoodName())) {
-            if (newFoodInfoRepository.existsByFoodName(request.getName())) {
+            if (newFoodInfoRepository.existsBySchoolIdAndFoodName(schoolId, request.getName())) {
                 throw new IllegalStateException("DUPLICATE:" + request.getName());
             }
             foodInfo.setFoodName(request.getName());
@@ -398,18 +400,18 @@ public class NewMenuService {
     }
 
     /**
-     * 신메뉴 목록 조회 (페이지네이션)
+     * 신메뉴 목록 조회 (페이지네이션) - 학교별
      */
-    public Page<NewFoodInfoResponse> getNewFoodInfoList(Pageable pageable) {
-        Page<NewFoodInfo> page = newFoodInfoRepository.findByDeletedFalseOrderByCreatedAtDesc(pageable);
+    public Page<NewFoodInfoResponse> getNewFoodInfoList(Pageable pageable, Long schoolId) {
+        Page<NewFoodInfo> page = newFoodInfoRepository.findBySchoolIdAndDeletedFalseOrderByCreatedAtDesc(schoolId, pageable);
         return page.map(this::toNewFoodInfoResponse);
     }
 
     /**
-     * 신메뉴 상세 조회
+     * 신메뉴 상세 조회 - 학교별
      */
-    public NewFoodInfoResponse getNewFoodInfo(String newFoodId) {
-        NewFoodInfo foodInfo = newFoodInfoRepository.findByFoodCode(newFoodId)
+    public NewFoodInfoResponse getNewFoodInfo(String newFoodId, Long schoolId) {
+        NewFoodInfo foodInfo = newFoodInfoRepository.findBySchoolIdAndFoodCode(schoolId, newFoodId)
                 .orElseThrow(() -> new IllegalArgumentException("NOT_FOUND:" + newFoodId));
 
         if (Boolean.TRUE.equals(foodInfo.getDeleted())) {
@@ -431,6 +433,7 @@ public class NewMenuService {
         }
 
         return NewFoodInfoResponse.builder()
+                .schoolId(foodInfo.getSchoolId())
                 .newMenuId(foodInfo.getFoodCode())
                 .name(foodInfo.getFoodName())
                 .category(foodInfo.getCategory())

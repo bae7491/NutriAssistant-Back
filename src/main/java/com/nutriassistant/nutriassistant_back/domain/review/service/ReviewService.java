@@ -16,11 +16,11 @@ public class ReviewService {
 
     // 리뷰 등록
     @Transactional
-    public ReviewDto.Response registerReview(ReviewDto.RegisterRequest request) {
+    public ReviewDto.Response registerReview(ReviewDto.RegisterRequest request, Long schoolId, Long studentId) {
 
         Review review = Review.builder()
-                .studentId(request.getStudent_id())
-                .schoolId(request.getSchool_id())
+                .studentId(studentId)  // JWT에서 가져온 userId 사용
+                .schoolId(schoolId)    // JWT에서 가져온 schoolId 사용
                 .date(request.getDate())
                 .mealType(request.getMeal_type())
                 .rating(request.getRating())
