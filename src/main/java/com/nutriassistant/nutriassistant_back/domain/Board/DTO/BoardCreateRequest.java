@@ -20,13 +20,7 @@ public class BoardCreateRequest {
     @NotBlank(message = "내용은 필수 입력값입니다.")
     private String content;
 
-    @NotNull(message = "작성자 ID는 필수 입력값입니다.")
-    private Long authorId;
-
-    private String authorName;
-
-    @NotBlank(message = "작성자 유형은 필수 입력값입니다.")
-    private String authorType;
+    // authorId, authorType은 JWT에서 자동 추출 (요청에서 제거)
 
     private List<AttachmentRequest> attachments;
 

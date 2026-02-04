@@ -273,7 +273,7 @@ public class MealPlanService {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         if (internalToken != null && !internalToken.isEmpty()) {
-            headers.set("X-Internal-Token", internalToken);
+            headers.set("X-Internal-API-Key", internalToken);
         }
         return headers;
     }

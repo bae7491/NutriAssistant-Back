@@ -54,10 +54,15 @@ public class BoardController {
             @Validated @RequestBody BoardCreateRequest request
     ) {
         try {
-            log.info("📝 게시글 등록 API 호출: category={}, title={}, authorId={}, authorType={}, schoolId={}",
-                    request.getCategory(), request.getTitle(), request.getAuthorId(), request.getAuthorType(), user.getSchoolId());
+            log.info("📝 게시글 등록 API 호출: category={}, title={}, userId={}, role={}, schoolId={}",
+                    request.getCategory(), request.getTitle(), user.getUserId(), user.getRole(), user.getSchoolId());
 
-            BoardCreateResponse response = boardService.createBoard(request, user.getSchoolId());
+            BoardCreateResponse response = boardService.createBoard(
+                    request,
+                    user.getSchoolId(),
+                    user.getUserId(),
+                    user.getRole()
+            );
 
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
 

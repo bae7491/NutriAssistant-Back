@@ -51,8 +51,9 @@ public class BoardService {
     }
 
     @Transactional
-    public BoardCreateResponse createBoard(BoardCreateRequest request, Long schoolId) {
-        log.info("📝 게시글 등록 요청: category={}, title={}", request.getCategory(), request.getTitle());
+    public BoardCreateResponse createBoard(BoardCreateRequest request, Long schoolId, Long authorId, String role) {
+        log.info("📝 게시글 등록 요청: category={}, title={}, authorId={}, role={}",
+                request.getCategory(), request.getTitle(), authorId, role);
 
         // 1. 카테고리 파싱
         CategoryType category;
@@ -62,19 +63,18 @@ public class BoardService {
             throw new IllegalArgumentException("유효하지 않은 카테고리입니다: " + request.getCategory());
         }
 
-        // 2. 작성자 타입 파싱
+        // 2. 작성자 타입 결정 (JWT role에서 추출)
         AuthorType authorType;
-        try {
-            authorType = AuthorType.valueOf(request.getAuthorType().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("유효하지 않은 작성자 유형입니다: " + request.getAuthorType());
+        if ("ROLE_DIETITIAN".equals(role)) {
+            authorType = AuthorType.DIETITIAN;
+        } else if ("ROLE_STUDENT".equals(role)) {
+            authorType = AuthorType.STUDENT;
+        } else {
+            throw new IllegalArgumentException("유효하지 않은 사용자 권한입니다: " + role);
         }
 
-        // 3. 작성자 이름 조회 (authorName이 없는 경우)
-        String authorName = request.getAuthorName();
-        if (authorName == null || authorName.isBlank()) {
-            authorName = resolveAuthorName(request.getAuthorId(), authorType);
-        }
+        // 3. 작성자 이름 조회
+        String authorName = resolveAuthorName(authorId, authorType);
 
         // 4. 게시글 저장
         Board board = new Board(
@@ -82,7 +82,7 @@ public class BoardService {
                 category,
                 request.getTitle(),
                 request.getContent(),
-                request.getAuthorId(),
+                authorId,
                 authorName,
                 authorType
         );

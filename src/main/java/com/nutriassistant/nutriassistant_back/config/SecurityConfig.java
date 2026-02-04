@@ -1,5 +1,6 @@
 package com.nutriassistant.nutriassistant_back.config;
 
+import com.nutriassistant.nutriassistant_back.global.filter.InternalApiKeyFilter;
 import com.nutriassistant.nutriassistant_back.global.jwt.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,9 +24,12 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final InternalApiKeyFilter internalApiKeyFilter;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
+                          InternalApiKeyFilter internalApiKeyFilter) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.internalApiKeyFilter = internalApiKeyFilter;
     }
 
     @Bean
@@ -92,6 +96,8 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 );
 
+        // Internal API 키 검증 필터를 가장 먼저 실행
+        http.addFilterBefore(internalApiKeyFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

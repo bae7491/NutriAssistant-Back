@@ -10,7 +10,7 @@ public class LeftoverDto {
 
     @Getter
     public static class RegisterRequest {
-        private Long school_id;
+        // school_id는 JWT에서 자동 추출
         private LocalDate date;
         private String meal_type;
         private Float amount_kg;
@@ -18,7 +18,7 @@ public class LeftoverDto {
 
     @Getter
     public static class UpdateRequest {
-        private Long school_id;
+        // school_id는 JWT에서 자동 추출
         private LocalDate date;
         private String meal_type;
 

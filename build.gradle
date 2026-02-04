@@ -43,6 +43,12 @@ dependencies {
     runtimeOnly 'com.mysql:mysql-connector-j'
 
     // 4. 유틸리티 (Lombok)
+    // ✅ (추가) Swagger UI - API 문서 자동 생성
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0'
+
+    // ✅ (추가) AWS S3 파일 업로드
+    implementation 'software.amazon.awssdk:s3:2.25.0'
+
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 

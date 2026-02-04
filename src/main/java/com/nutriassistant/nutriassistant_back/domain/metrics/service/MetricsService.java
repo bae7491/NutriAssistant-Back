@@ -58,14 +58,14 @@ public class MetricsService {
 
     // 결식 데이터 등록
     @Transactional
-    public SkipMealDto.Response registerSkipMeal(SkipMealDto.RegisterRequest request) {
+    public SkipMealDto.Response registerSkipMeal(SkipMealDto.RegisterRequest request, Long schoolId) {
         if (skipMealRepository.existsBySchoolIdAndDateAndMealType(
-                request.getSchool_id(), request.getDate(), request.getMeal_type())) {
+                schoolId, request.getDate(), request.getMeal_type())) {
             throw new IllegalArgumentException("해당 날짜에 이미 결식 데이터가 존재합니다.");
         }
 
         SkipMeal skipMeal = SkipMeal.builder()
-                .schoolId(request.getSchool_id())
+                .schoolId(schoolId)
                 .date(request.getDate())
                 .mealType(request.getMeal_type())
                 .skippedCount(request.getSkipped_count())
@@ -77,10 +77,10 @@ public class MetricsService {
 
     // 결식 데이터 수정
     @Transactional
-    public SkipMealDto.Response updateSkipMeal(SkipMealDto.UpdateRequest request) {
+    public SkipMealDto.Response updateSkipMeal(SkipMealDto.UpdateRequest request, Long schoolId) {
         // 1. 학교ID + 날짜 + 식사타입으로 기존 데이터를 찾습니다.
         SkipMeal skipMeal = skipMealRepository.findBySchoolIdAndDateAndMealType(
-                        request.getSchool_id(), request.getDate(), request.getMeal_type())
+                        schoolId, request.getDate(), request.getMeal_type())
                 .orElseThrow(() -> new IllegalArgumentException("해당 날짜의 데이터를 찾을 수 없습니다. (등록 먼저 해주세요)"));
 
         // 2. 찾은 데이터를 업데이트합니다. (JPA 변경 감지 활용)
@@ -155,14 +155,14 @@ public class MetricsService {
 
     // 잔반 데이터 등록
     @Transactional
-    public LeftoverDto.Response registerLeftover(LeftoverDto.RegisterRequest request) {
+    public LeftoverDto.Response registerLeftover(LeftoverDto.RegisterRequest request, Long schoolId) {
         if (leftoverRepository.existsBySchoolIdAndDateAndMealType(
-                request.getSchool_id(), request.getDate(), request.getMeal_type())) {
+                schoolId, request.getDate(), request.getMeal_type())) {
             throw new IllegalArgumentException("해당 날짜에 이미 잔반 데이터가 존재합니다.");
         }
 
         Leftover leftover = Leftover.builder()
-                .schoolId(request.getSchool_id())
+                .schoolId(schoolId)
                 .date(request.getDate())
                 .mealType(request.getMeal_type())
                 .amountKg(request.getAmount_kg())
@@ -173,10 +173,10 @@ public class MetricsService {
 
     // 잔반 데이터 수정
     @Transactional
-    public LeftoverDto.Response updateLeftover(LeftoverDto.UpdateRequest request) {
+    public LeftoverDto.Response updateLeftover(LeftoverDto.UpdateRequest request, Long schoolId) {
         // 1. 학교ID + 날짜 + 식사타입으로 조회
         Leftover leftover = leftoverRepository.findBySchoolIdAndDateAndMealType(
-                        request.getSchool_id(), request.getDate(), request.getMeal_type())
+                        schoolId, request.getDate(), request.getMeal_type())
                 .orElseThrow(() -> new IllegalArgumentException("해당 날짜의 데이터를 찾을 수 없습니다."));
 
         // 2. 값 업데이트 (Double -> Float 변환)

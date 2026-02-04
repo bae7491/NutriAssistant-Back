@@ -54,10 +54,19 @@ public class MenuCostController {
     }
 
     /**
-     * 전체 단가 DB 조회 (FastAPI용)
+     * 전체 단가 DB 조회 (인증 필요)
      */
     @GetMapping
     public ResponseEntity<MenuCostDatabaseResponse> getAllCosts() {
+        MenuCostDatabaseResponse response = menuCostService.getAllCosts();
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 전체 단가 DB 조회 (FastAPI 내부 연동용 - API 키 인증)
+     */
+    @GetMapping("/internal/all")
+    public ResponseEntity<MenuCostDatabaseResponse> getAllCostsInternal() {
         MenuCostDatabaseResponse response = menuCostService.getAllCosts();
         return ResponseEntity.ok(response);
     }
