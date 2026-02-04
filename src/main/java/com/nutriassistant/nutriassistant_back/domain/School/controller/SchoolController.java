@@ -3,9 +3,9 @@ package com.nutriassistant.nutriassistant_back.domain.School.controller;
 import com.nutriassistant.nutriassistant_back.domain.School.dto.NeisSchoolResponse;
 import com.nutriassistant.nutriassistant_back.domain.School.dto.SchoolRequest;
 import com.nutriassistant.nutriassistant_back.domain.School.dto.SchoolResponse;
-import com.nutriassistant.nutriassistant_back.domain.School.dto.SchoolSearchDto; // ★ DTO 추가
+import com.nutriassistant.nutriassistant_back.domain.School.dto.SchoolSearchDto;
 import com.nutriassistant.nutriassistant_back.domain.School.service.SchoolService;
-import com.nutriassistant.nutriassistant_back.global.jwt.CustomUserDetails; // ★ 시큐리티 UserDetails 경로 확인 필요
+import com.nutriassistant.nutriassistant_back.global.jwt.CustomUserDetails;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,32 +26,33 @@ public class SchoolController {
 
     // =========================================================================
     // 1. [학생용] 학교 검색 (가입 가능 여부 포함)
+    // - 반환 타입: SchoolSearchDto (가입 가능 여부, 주소 등 가공된 정보)
     // =========================================================================
     @GetMapping("/search")
     public ResponseEntity<List<SchoolSearchDto>> searchSchoolsForUser(
             @RequestParam("keyword") String keyword
     ) {
-        // SchoolService.searchSchoolsForUser 호출 -> SchoolSearchDto 리스트 반환
         return ResponseEntity.ok(schoolService.searchSchoolsForUser(keyword));
     }
 
     // =========================================================================
     // 2. [영양사용] 학교 검색 (등록용, 단순 검색)
+    // - 반환 타입: SchoolRow (NEIS 원본 데이터, 미등록 학교 포함)
     // =========================================================================
     @GetMapping("/dietitian/search")
     public ResponseEntity<List<NeisSchoolResponse.SchoolRow>> searchSchoolsForDietitian(
             @RequestParam("keyword") String keyword
     ) {
-        // SchoolService.searchSchools 호출 -> NeisSchoolResponse.SchoolRow 리스트 반환
         return ResponseEntity.ok(schoolService.searchSchools(keyword));
     }
 
     // =========================================================================
     // 3. 내 학교 등록 (POST) - 영양사 전용
+    // - 이미 껍데기 학교가 있으면 정보를 업데이트하고 영양사를 매칭합니다.
     // =========================================================================
     @PostMapping("/register")
     public ResponseEntity<SchoolResponse> registerSchool(
-            @AuthenticationPrincipal CustomUserDetails userDetails, // ★ 토큰에서 바로 ID 꺼내기
+            @AuthenticationPrincipal CustomUserDetails userDetails,
             @RequestBody SchoolRequest request
     ) {
         Long dietitianId = userDetails.getId();
@@ -73,6 +74,7 @@ public class SchoolController {
 
     // =========================================================================
     // 5. 내 학교 정보 수정 (PUT) - 영양사 전용
+    // - 학생 수, 급식 단가 등 운영 정보를 수정합니다.
     // =========================================================================
     @PutMapping("/my")
     public ResponseEntity<SchoolResponse> updateSchool(

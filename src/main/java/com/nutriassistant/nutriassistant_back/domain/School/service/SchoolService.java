@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -32,93 +31,106 @@ public class SchoolService {
 
     // =========================================================================
     // 1. [학생 가입용] 학교 검색
-    // - 등록된 학교만 가입 가능하도록 식별 플래그(registered) 설정
+    // - NEIS 데이터와 DB 데이터를 병합하여 DTO로 반환
     // =========================================================================
     @Transactional(readOnly = true)
     public List<SchoolSearchDto> searchSchoolsForUser(String keyword) {
-        log.info("사용자용 학교 검색: {}", keyword);
+        log.info("사용자용 학교 검색 요청 - keyword: {}", keyword);
 
-        // 1. 나이스 API에서 전체 학교 목록 가져오기
-        List<NeisSchoolResponse.SchoolRow> neisList = neisSchoolService.searchSchool(keyword);
+        // 1) 나이스 API 호출
+        List<NeisSchoolResponse.SchoolRow> neisRows = neisSchoolService.searchSchool(keyword);
 
-        if (neisList == null || neisList.isEmpty()) {
+        if (neisRows == null || neisRows.isEmpty()) {
             return Collections.emptyList();
         }
 
-        List<SchoolSearchDto> resultList = new ArrayList<>();
+        // 2) DTO 변환 및 DB 조회 매핑 (Stream API 사용)
+        return neisRows.stream().map(row -> {
+            // 학교 코드로 우리 DB 조회
+            Optional<School> schoolOpt = schoolRepository.findBySchoolCode(row.getSchoolCode());
 
-        // 2. 각 학교가 우리 서비스(DB)에 등록되어 있는지 확인
-        for (NeisSchoolResponse.SchoolRow row : neisList) {
+            if (schoolOpt.isPresent()) {
+                // [CASE 1] DB에 학교가 존재함 (영양사 등록 여부 확인 필요)
+                School school = schoolOpt.get();
+                boolean hasDietitian = school.getDietitian() != null;
 
-            // 기본 DTO 생성 (주소 포함하여 동명이교 구분)
-            SchoolSearchDto dto = SchoolSearchDto.builder()
-                    .schoolName(row.getSchoolName())
-                    .schoolCode(row.getSchoolCode())
-                    .regionCode(row.getRegionCode())
-                    .address(row.getAddress())
-                    .schoolType(row.getSchoolType())
-                    .build();
-
-            // DB 조회 (표준 학교 코드로 확인)
-            Optional<School> existingSchool = schoolRepository.findBySchoolCode(row.getSchoolCode());
-
-            // ★ 가입 가능 여부 판별 로직 ★
-            if (existingSchool.isPresent() && existingSchool.get().getDietitian() != null) {
-                // CASE 1: 학교가 있고, 담당 영양사도 있음 -> [가입 가능]
-                School school = existingSchool.get();
-                dto.setSchoolId(school.getId());
-                dto.setRegistered(true); // 프론트: 활성화
-                dto.setDietitianName(school.getDietitian().getName());
-                dto.setMessage("가입 가능");
+                return SchoolSearchDto.builder()
+                        .schoolId(hasDietitian ? school.getId() : null) // 영양사 없으면 가입 불가하므로 ID null
+                        .schoolCode(row.getSchoolCode())
+                        .regionCode(row.getRegionCode())
+                        .schoolName(row.getSchoolName())
+                        .address(row.getAddress())
+                        .schoolType(row.getSchoolType())
+                        .isRegistered(hasDietitian) // 영양사가 있어야 true
+                        .dietitianName(hasDietitian ? school.getDietitian().getName() : null)
+                        .message(hasDietitian ? "가입 가능" : "담당 영양사 미배정")
+                        .build();
             } else {
-                // CASE 2: DB에 없거나, 영양사가 배정되지 않음 -> [가입 불가]
-                dto.setSchoolId(null);   // ID가 없으므로 가입 요청 불가능
-                dto.setRegistered(false); // 프론트: 비활성화(Gray out)
-                dto.setMessage("미등록 학교 (가입 불가)");
+                // [CASE 2] DB에 학교가 없음 (미등록)
+                return SchoolSearchDto.builder()
+                        .schoolId(null)
+                        .schoolCode(row.getSchoolCode())
+                        .regionCode(row.getRegionCode())
+                        .schoolName(row.getSchoolName())
+                        .address(row.getAddress())
+                        .schoolType(row.getSchoolType())
+                        .isRegistered(false)
+                        .dietitianName(null)
+                        .message("미등록 학교")
+                        .build();
             }
-
-            resultList.add(dto);
-        }
-
-        return resultList;
+        }).toList();
     }
 
     // =========================================================================
     // 2. [영양사 등록용] 학교 검색
+    // - 영양사는 등록을 위해 원본 데이터가 필요하므로 NEIS 결과 그대로 반환
     // =========================================================================
     @Transactional(readOnly = true)
     public List<NeisSchoolResponse.SchoolRow> searchSchools(String keyword) {
-        // 영양사는 미등록 학교를 찾아야 하므로 NEIS 결과 그대로 반환
         return neisSchoolService.searchSchool(keyword);
     }
 
     // =========================================================================
     // 3. 학교 등록 (영양사)
+    // - 기존 껍데기 학교가 있다면 정보를 업데이트하고 영양사를 매칭
     // =========================================================================
     @Transactional
     public SchoolResponse registerSchool(Long dietitianId, SchoolRequest request) {
         Dietitian dietitian = dietitianRepository.findById(dietitianId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "존재하지 않는 영양사입니다."));
 
-        // 해당 영양사가 이미 등록한 학교가 있는지 확인
+        // 1. 이미 내가 등록한 학교가 있는지 체크
         if (schoolRepository.findByDietitian_Id(dietitianId).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 관리 중인 학교가 있습니다. 한 계정당 하나의 학교만 등록 가능합니다.");
         }
 
-        // 해당 학교가 이미 다른 영양사에 의해 등록되었는지 확인
+        // 2. 학교 코드로 이미 존재하는 학교인지 체크
         Optional<School> existingSchool = schoolRepository.findBySchoolCode(request.getSchoolCode());
 
         School school;
         if (existingSchool.isPresent()) {
+            // [CASE A] 이미 존재하는 학교 (학생들이 껍데기를 만들어둔 경우 등)
             school = existingSchool.get();
+
+            // 이미 주인이 있는지 확인
             if (school.getDietitian() != null) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 다른 영양사님이 관리 중인 학교입니다.");
             }
-            // (혹시 데이터만 있고 주인 없는 학교라면 내 학교로 등록)
+
+            // ★ 영양사 연결
             school.setDietitian(dietitian);
-            // 필요한 경우 정보 업데이트 코드 추가
+
+            // ★ 중요: 프론트에서 보내준 최신 정보로 덮어쓰기 (이사갔거나 교명 변경, 누락 정보 대비)
+            school.setSchoolName(request.getSchoolName());
+            school.setRegionCode(request.getRegionCode());
+            school.setAddress(request.getAddress());
+            school.setSchoolType(request.getSchoolType());
+            school.setPhone(request.getPhone());
+            school.setEmail(request.getEmail());
+
         } else {
-            // 신규 등록
+            // [CASE B] 아예 없는 학교 -> 신규 생성
             school = School.builder()
                     .dietitian(dietitian)
                     .schoolName(request.getSchoolName())
@@ -146,7 +158,7 @@ public class SchoolService {
     }
 
     // =========================================================================
-    // 5. 학교 정보 수정
+    // 5. 학교 정보 수정 (학생 수, 단가 등 운영 정보)
     // =========================================================================
     @Transactional
     public SchoolResponse updateSchoolInfo(Long dietitianId, SchoolRequest request) {
