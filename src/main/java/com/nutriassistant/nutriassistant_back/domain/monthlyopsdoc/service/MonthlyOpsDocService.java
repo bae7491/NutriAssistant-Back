@@ -16,6 +16,10 @@ import com.nutriassistant.nutriassistant_back.domain.monthlyopsdoc.repository.Mo
 
 import com.nutriassistant.nutriassistant_back.domain.review.entity.Review;
 import com.nutriassistant.nutriassistant_back.domain.review.repository.ReviewRepository;
+import com.nutriassistant.nutriassistant_back.domain.MealPlan.entity.MealPlanMenu;
+import com.nutriassistant.nutriassistant_back.domain.MealPlan.repository.MealPlanMenuRepository;
+import com.nutriassistant.nutriassistant_back.domain.reviewanalysis.entity.ReviewAnalysis;
+import com.nutriassistant.nutriassistant_back.domain.reviewanalysis.repository.ReviewAnalysisRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,6 +51,8 @@ public class MonthlyOpsDocService {
     private final SkipMealRepository skipMealRepository;
     private final LeftoverRepository leftoverRepository;
     private final ReviewRepository reviewRepository;
+    private final MealPlanMenuRepository mealPlanMenuRepository;
+    private final ReviewAnalysisRepository reviewAnalysisRepository;
 
     // =========================================================================
     // 1. [Create] Create Operation Document (Stats -> AI Analysis -> DB Save)
@@ -156,6 +162,7 @@ public class MonthlyOpsDocService {
         payload.put("year", request.getYear());
         payload.put("month", request.getMonth());
         payload.put("targetGroup", "STUDENT");
+        payload.put("school_id", schoolId);
 
         // Build leftover maps for lookup
         Map<LocalDate, Double> lunchLeftoverMap = lunchLeftovers.stream()
@@ -279,10 +286,85 @@ public class MonthlyOpsDocService {
         }
         payload.put("reviews", reviewList);
 
-        // ========== Empty arrays for optional fields ==========
-        payload.put("mealPlan", new ArrayList<>());
+        // ========== mealPlan: DB에서 해당 월의 식단 데이터 조회 ==========
+        YearMonth yearMonth = YearMonth.of(request.getYear(), request.getMonth());
+        LocalDate startDate = yearMonth.atDay(1);
+        LocalDate endDate = yearMonth.atEndOfMonth();
+
+        List<MealPlanMenu> mealPlanMenus = mealPlanMenuRepository
+                .findByMealPlan_SchoolIdAndMenuDateBetweenOrderByMenuDateAscMealTypeAsc(schoolId, startDate, endDate);
+
+        List<Map<String, Object>> mealPlanList = new ArrayList<>();
+        for (MealPlanMenu menu : mealPlanMenus) {
+            Map<String, Object> m = new HashMap<>();
+            m.put("date", menu.getMenuDate().toString());
+            m.put("mealType", menu.getMealType() != null ? menu.getMealType().name() : "LUNCH");
+            m.put("rice", menu.getRiceDisplay());
+            m.put("soup", menu.getSoupDisplay());
+            m.put("main1", menu.getMain1Display());
+            m.put("main2", menu.getMain2Display());
+            m.put("side", menu.getSideDisplay());
+            m.put("kimchi", menu.getKimchiDisplay());
+            m.put("dessert", menu.getDessertDisplay());
+            mealPlanList.add(m);
+        }
+        payload.put("mealPlan", mealPlanList);
+        log.info("📋 mealPlan 데이터 {}개 로드됨", mealPlanList.size());
+
+        // ========== reviewAnalyses: reviews 기반으로 개별 리뷰 분석 결과 생성 ==========
+        // FastAPI는 개별 리뷰에 대한 분석 결과를 기대함 (review_id로 날짜 추출)
+        List<Map<String, Object>> reviewAnalysesPayload = new ArrayList<>();
+        int raIdx = 0;
+        for (Review r : reviews) {
+            Map<String, Object> m = new HashMap<>();
+
+            // 날짜 문자열 생성 (R-YYYYMMDD-NNNN 형식)
+            String dateStr = r.getCreatedAt() != null
+                    ? r.getCreatedAt().toLocalDate().toString().replace("-", "")
+                    : String.format("%04d%02d01", request.getYear(), request.getMonth());
+
+            // 필수 필드
+            m.put("review_id", String.format("R-%s-%04d", dateStr, ++raIdx));
+            m.put("meal_type", r.getMealType() != null ? r.getMealType() : "LUNCH");
+            m.put("rating_5", r.getRating() != null ? r.getRating().doubleValue() : 0.0);
+
+            // 감정 분석 결과 (rating 기반으로 추정)
+            double rating = r.getRating() != null ? r.getRating().doubleValue() : 3.0;
+            String sentimentLabel;
+            double sentimentScore;
+            if (rating >= 4.0) {
+                sentimentLabel = "POSITIVE";
+                sentimentScore = 0.7 + (rating - 4.0) * 0.15;  // 4점: 0.7, 5점: 0.85
+            } else if (rating >= 3.0) {
+                sentimentLabel = "NEUTRAL";
+                sentimentScore = 0.4 + (rating - 3.0) * 0.3;  // 3점: 0.4, 4점: 0.7
+            } else {
+                sentimentLabel = "NEGATIVE";
+                sentimentScore = rating / 3.0 * 0.4;  // 1점: 0.13, 2점: 0.27
+            }
+
+            m.put("sentiment_label", sentimentLabel);
+            m.put("sentiment_score", sentimentScore);
+            m.put("sentiment_conf", 0.85);  // 기본 신뢰도
+
+            // 리스트 타입 필드들
+            m.put("aspect_tags", new ArrayList<String>());
+
+            List<String> evidencePhrases = new ArrayList<>();
+            if (r.getContent() != null && !r.getContent().isBlank()) {
+                evidencePhrases.add(r.getContent());
+            }
+            m.put("evidence_phrases", evidencePhrases);
+
+            m.put("issue_flags", new ArrayList<String>());
+
+            reviewAnalysesPayload.add(m);
+        }
+        payload.put("reviewAnalyses", reviewAnalysesPayload);
+        log.info("📊 reviewAnalyses 데이터 {}개 생성됨 (reviews 기반)", reviewAnalysesPayload.size());
+
+        // ========== posts, postAnalyses: 제외이므로 빈 배열 유지 ==========
         payload.put("posts", new ArrayList<>());
-        payload.put("reviewAnalyses", new ArrayList<>());
         payload.put("postAnalyses", new ArrayList<>());
 
         return payload;

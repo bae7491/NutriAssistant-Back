@@ -27,4 +27,7 @@ public interface ReviewAnalysisRepository extends JpaRepository<ReviewAnalysis, 
 
     @Query("SELECT COUNT(r) FROM ReviewAnalysis r WHERE r.schoolId = :schoolId AND r.sentimentLabel = :label AND r.createdAt BETWEEN :startDate AND :endDate")
     long countBySchoolIdAndLabelAndDateRange(@Param("schoolId") Long schoolId, @Param("label") String label, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+
+    // 학교별, 연월(targetYm)으로 리뷰 분석 조회
+    List<ReviewAnalysis> findBySchoolIdAndTargetYm(Long schoolId, String targetYm);
 }
