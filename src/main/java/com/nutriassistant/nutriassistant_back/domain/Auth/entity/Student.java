@@ -17,12 +17,14 @@ public class Student {
     @Column(name = "id")
     private Long id;
 
-    // [수정] 학교 정보 매핑
-    // FetchType.LAZY: 학생을 조회할 때 학교 데이터까지 즉시 가져오지 않고,
-    // getSchool()을 호출하여 실제로 데이터를 사용할 때 쿼리를 날립니다. (성능 최적화)
+    // ▼▼▼ [수정 포인트] ▼▼▼
+    // updatable = false를 제거했습니다.
+    // 이유: 학생이 전학을 가거나, 학년이 바뀌면서 학교가 변경될 수 있는 가능성을 열어두기 위함입니다.
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "school_id", nullable = false, updatable = false) // DB 컬럼명 school_id와 매핑
+    @JoinColumn(name = "school_id", nullable = false) // ★ updatable = false 삭제됨
     private School school;
+
+    // ... (나머지 코드는 그대로 유지) ...
 
     @Column(name = "username", nullable = false, length = 255, updatable = false)
     private String username;
@@ -56,7 +58,6 @@ public class Student {
     public Student() {}
 
     // Getters & Setters
-
     public Long getId() { return id; }
 
     public School getSchool() { return school; }
@@ -86,7 +87,7 @@ public class Student {
     public String getAllergyCodes() { return allergyCodes; }
     public void setAllergyCodes(String allergyCodes) { this.allergyCodes = allergyCodes; }
 
-    // 전화번호 정규화 (DB 저장/업데이트 전 자동 실행)
+    // 전화번호 정규화
     @PrePersist
     @PreUpdate
     private void normalizePhone() {
@@ -95,12 +96,8 @@ public class Student {
         }
     }
 
-    // [수정] 학교 ID 반환 편의 메서드
-    // School 객체가 null일 경우 안전하게 null을 반환하도록 처리
+    // 학교 ID 반환 편의 메서드
     public Long getSchoolId() {
-        if (this.school != null) {
-            return this.school.getId();
-        }
-        return null;
+        return (this.school != null) ? this.school.getId() : null;
     }
 }

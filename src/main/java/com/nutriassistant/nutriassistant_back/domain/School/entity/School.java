@@ -21,30 +21,37 @@ public class School {
     @Column(name = "school_id")
     private Long id;
 
-    // 영양사(Dietitian)와 1:1 관계 (한 학교에 한 명의 관리 영양사)
+    // 영양사(Dietitian)와 1:1 관계
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "dietitian_id", nullable = false)
     private Dietitian dietitian;
 
     // =======================================================
-    // 1. 기본 정보 (나이스 API에서 가져오는 불변 정보)
+    // 1. 기본 정보 (나이스 API 기반)
     // =======================================================
+    // 나중에 학교 이름이나 주소가 바뀔 수도 있으므로 @Setter를 열어두거나,
+    // updateBasicInfo 같은 메서드를 만드는 것이 좋습니다.
+    // 여기서는 유연하게 @Setter를 추가했습니다.
+
+    @Setter
     @Column(nullable = false)
     private String schoolName;   // 학교명
 
-    @Column(nullable = false, unique = true) // 학교 코드는 유니크해야 함
-    private String schoolCode;   // 표준학교코드 (중복 방지용 key)
+    @Column(nullable = false, unique = true)
+    private String schoolCode;   // 표준학교코드 (이건 절대 바뀌면 안 됨 -> Setter 없음)
 
     @Column(nullable = false)
     private String regionCode;   // 시도교육청코드
 
+    @Setter
     private String address;      // 주소
+
+    @Setter
     private String schoolType;   // 학교 종류 (초/중/고)
 
     // =======================================================
-    // 2. 운영 정보 (영양사가 직접 입력/수정하는 정보)
+    // 2. 운영 정보 (영양사 입력 정보)
     // =======================================================
-    // 수정 가능한 필드에만 @Setter를 붙여줍니다.
 
     @Setter
     private String phone;        // 전화번호
@@ -63,7 +70,7 @@ public class School {
 
     @Setter
     @Column(columnDefinition = "TEXT")
-    private String operationRules;   // 운영 규칙 (긴 글)
+    private String operationRules;   // 운영 규칙
 
     @Setter
     private Integer cookWorkers;     // 조리 종사자 수
@@ -81,4 +88,13 @@ public class School {
 
     @UpdateTimestamp
     private LocalDateTime updatedAt;
+
+    // =======================================================
+    // 4. 편의 메서드
+    // =======================================================
+
+    // [수정] 빈 껍데기 메서드 수정 -> 실제 값을 대입하도록 변경
+    public void setDietitian(Dietitian dietitian) {
+        this.dietitian = dietitian;
+    }
 }

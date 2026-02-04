@@ -33,7 +33,6 @@ public class Dietitian {
     @Column(name = "phone", nullable = false, length = 50)
     private String phone;
 
-    // [수정] 이메일 필드 정식 추가
     @Column(name = "email", nullable = false, length = 100)
     private String email;
 
@@ -57,13 +56,17 @@ public class Dietitian {
     public String getPasswordHash() { return passwordHash; }
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
 
+    // ▼▼▼ [추가] CustomUserDetails 호환용 편의 메서드 ▼▼▼
+    public String getPw() {
+        return this.passwordHash;
+    }
+
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
 
     public String getPhone() { return phone; }
     public void setPhone(String phone) { this.phone = phone; }
 
-    // [수정] 이메일 Getter/Setter 구현
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
 

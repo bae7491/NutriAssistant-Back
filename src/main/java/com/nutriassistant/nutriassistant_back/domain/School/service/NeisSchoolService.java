@@ -21,39 +21,34 @@ public class NeisSchoolService {
     @Value("${neis.api-key}")
     private String neisApiKey;
 
+    // ★ 정확한 학교 정보 조회 URL 확인
     private static final String NEIS_BASE_URL = "https://open.neis.go.kr/hub/schoolInfo";
     private static final int PAGE_SIZE = 100;
     private static final int MAX_PAGES = 30;
 
     /**
-     * [학교 검색 단순 호출 메서드]
-     * - SchoolService에서 호출하기 편하게 만든 오버로딩 메서드입니다.
-     * - SchoolKind(학교 종류) 필터 없이 이름으로만 검색합니다.
+     * [학교 검색 진입점]
+     * SchoolService에서 호출하는 메서드입니다.
      */
     public List<NeisSchoolResponse.SchoolRow> searchSchool(String keyword) {
-        return searchSchools(keyword, null);
+        return searchSchoolsInternal(keyword);
     }
 
     /**
-     * [학교 검색 핵심 로직]
-     * 1. 키워드 분리 ("부산 소프트" -> "부산", "소프트")
-     * 2. 첫 단어로 API 페이징 호출 (1~30페이지)
-     * 3. 나머지 단어로 결과 필터링
+     * [내부 검색 로직]
+     * 1. API 호출
+     * 2. 검색어 필터링 (띄어쓰기 포함)
+     * 3. 결과 리스트 반환
      */
-    public List<NeisSchoolResponse.SchoolRow> searchSchools(String schoolName, String normalizedSchoolKind) {
-        log.info("나이스 API 학교 검색 진입: {}", schoolName);
-
-        if (schoolName == null) return Collections.emptyList();
-        String keyword = schoolName.trim();
-        if (keyword.isEmpty()) return Collections.emptyList();
-
-        // 2글자 미만 검색 제한 (선택 사항)
-        if (keyword.length() < 2) {
-            log.warn("검색어가 너무 짧습니다 (2글자 미만): {}", keyword);
+    private List<NeisSchoolResponse.SchoolRow> searchSchoolsInternal(String schoolName) {
+        if (schoolName == null || schoolName.trim().isEmpty()) {
             return Collections.emptyList();
         }
 
-        // 공백 기준 단어 분리
+        String keyword = schoolName.trim();
+        log.info("나이스 API 학교 검색 시작: {}", keyword);
+
+        // 검색어 분리 ("부산 소프트" -> "부산", "소프트")
         String[] tokens = keyword.split("\\s+");
         String firstToken = tokens[0];
         List<String> extraTokens = (tokens.length > 1)
@@ -63,44 +58,41 @@ public class NeisSchoolService {
         List<NeisSchoolResponse.SchoolRow> aggregated = new ArrayList<>();
         Set<String> seenSchoolCodes = new HashSet<>();
 
+        // 최대 30페이지까지 검색
         for (int pIndex = 1; pIndex <= MAX_PAGES; pIndex++) {
-            // API 호출
-            NeisSchoolResponse response = callNeis(firstToken, pIndex, PAGE_SIZE);
+            NeisSchoolResponse response = callNeisApi(firstToken, pIndex, PAGE_SIZE);
             List<NeisSchoolResponse.SchoolRow> rawRows = extractRows(response);
 
             if (rawRows.isEmpty()) break;
 
-            // 추가 단어 필터링 (메모리)
-            List<NeisSchoolResponse.SchoolRow> filteredRows = rawRows;
-            if (!extraTokens.isEmpty()) {
-                filteredRows = rawRows.stream()
-                        .filter(row -> {
-                            String name = row.getSchoolName() == null ? "" : row.getSchoolName();
-                            for (String t : extraTokens) {
-                                if (!name.contains(t)) return false;
-                            }
-                            return true;
-                        })
-                        .toList();
-            }
+            // 추가 검색어(extraTokens)가 모두 포함된 학교만 필터링
+            for (NeisSchoolResponse.SchoolRow row : rawRows) {
+                boolean match = true;
+                String name = row.getSchoolName();
 
-            // 중복 제거 및 결과 추가
-            for (NeisSchoolResponse.SchoolRow row : filteredRows) {
-                if (row.getSchoolCode() != null && seenSchoolCodes.add(row.getSchoolCode())) {
+                if (name == null) continue;
+
+                for (String token : extraTokens) {
+                    if (!name.contains(token)) {
+                        match = false;
+                        break;
+                    }
+                }
+
+                // 중복 제거 후 추가
+                if (match && seenSchoolCodes.add(row.getSchoolCode())) {
                     aggregated.add(row);
                 }
             }
 
-            // 페이지 끝 도달 시 종료
-            if (rawRows.size() < PAGE_SIZE) break;
+            if (rawRows.size() < PAGE_SIZE) break; // 더 이상 데이터 없음
         }
 
-        log.info("검색 완료. 총 {}건 발견", aggregated.size());
+        log.info("검색 결과: {}건", aggregated.size());
         return aggregated;
     }
 
-    // 나이스 API 실제 호출
-    private NeisSchoolResponse callNeis(String schoolName, int pIndex, int pSize) {
+    private NeisSchoolResponse callNeisApi(String schoolName, int pIndex, int pSize) {
         try {
             URI uri = UriComponentsBuilder.fromHttpUrl(NEIS_BASE_URL)
                     .queryParam("KEY", neisApiKey)
@@ -108,7 +100,7 @@ public class NeisSchoolService {
                     .queryParam("pIndex", pIndex)
                     .queryParam("pSize", pSize)
                     .queryParam("SCHUL_NM", schoolName)
-                    .encode() // 한글 인코딩 처리
+                    .encode()
                     .build()
                     .toUri();
 
@@ -117,12 +109,11 @@ public class NeisSchoolService {
                     .retrieve()
                     .body(NeisSchoolResponse.class);
         } catch (Exception e) {
-            log.error("나이스 API 호출 중 오류: {}", e.getMessage());
+            log.error("나이스 API 호출 실패: {}", e.getMessage());
             return null;
         }
     }
 
-    // JSON 구조에서 row 리스트만 추출
     private List<NeisSchoolResponse.SchoolRow> extractRows(NeisSchoolResponse response) {
         if (response == null || response.getSchoolInfo() == null) {
             return Collections.emptyList();
