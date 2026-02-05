@@ -6,10 +6,9 @@ import java.util.Optional;
 
 public interface SchoolRepository extends JpaRepository<School, Long> {
 
-    // [수정] findByDietitian_Id (School 엔티티의 필드명이 dietitian이어야 함)
+    // ✅ 영양사 ID로 학교 조회 (1:1 관계이므로 Optional)
     Optional<School> findByDietitian_Id(Long dietitianId);
 
-
-    // 학교 중복 가입 방지용
+    // ✅ 학교 코드로 학교 조회 (중복 가입 방지 및 기존 학교 존재 여부 확인)
     Optional<School> findBySchoolCode(String schoolCode);
 }

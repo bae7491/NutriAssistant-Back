@@ -17,19 +17,12 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
  * [인증(Authentication) 관련 비즈니스 로직 처리 서비스]
- *
- * 주요 기능:
- * 1. 학생: 회원가입, 로그인(JWT), 정보 수정, 비밀번호 변경
- * 2. 영양사: 회원가입(학교 정보 동시 등록), 로그인(JWT)
- *
- * 특징:
- * - JWT 토큰 발급 시 사용자 역할(Role)과 학교 ID(SchoolId)를 포함하여
- * 프론트엔드에서 권한 분리와 데이터 조회를 용이하게 합니다.
- * - 영양사 가입 시 '학교 등록'이 강제되는 비즈니스 로직을 수행합니다.
+ * 통합 기능: 학생/영양사 회원가입, 로그인, 아이디/비번 찾기, 정보 수정
  */
 @Service
 public class AuthService {
@@ -40,7 +33,6 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
 
-    // 생성자 주입 (Constructor Injection)
     public AuthService(StudentRepository studentRepository,
                        DietitianRepository dietitianRepository,
                        SchoolRepository schoolRepository,
@@ -56,21 +48,8 @@ public class AuthService {
     // =========================================================================
     // 1. 학생 회원가입
     // =========================================================================
-    /**
-     * [학생 회원가입]
-     *
-     * @param request 학생 가입 요청 정보 (학교ID, 아이디, 비번, 알레르기 등)
-     * @return 가입된 학생 정보 (SignUpResponse)
-     *
-     * 로직:
-     * 1. 아이디 공백 검사
-     * 2. 학교 ID 유효성 검사 (존재하지 않는 학교면 예외 발생)
-     * 3. 해당 학교 내에서 아이디 중복 검사
-     * 4. 학생 엔티티 생성, 데이터 매핑, 비밀번호 암호화 후 저장
-     */
     @Transactional
     public SignUpResponse signupStudent(SignUpRequest request) {
-
         Long requestSchoolId = request.getSchoolId();
         String username = request.getUsername() == null ? "" : request.getUsername().trim();
 
@@ -80,7 +59,6 @@ public class AuthService {
         }
 
         // 2. 학교 존재 여부 확인
-        // 학생은 이미 영양사가 등록해둔 학교(DB)에 소속되어야 하므로 조회가 필수입니다.
         School school = schoolRepository.findById(requestSchoolId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "존재하지 않는 학교 ID입니다."));
 
@@ -91,14 +69,14 @@ public class AuthService {
 
         // 4. 엔티티 생성 및 데이터 세팅
         Student student = new Student();
-        student.setSchool(school);          // 조회한 학교 엔티티 연결 (FK 설정)
+        student.setSchool(school);
         student.setUsername(username);
         student.setName(request.getName());
         student.setPhone(request.getPhone());
         student.setGrade(request.getGrade());
         student.setClassNo(request.getClassNo());
 
-        // 알레르기 리스트([1,2]) -> CSV 문자열("1,2")로 변환하여 저장
+        // 알레르기 리스트 -> CSV 변환
         student.setAllergyCodes(toAllergyCsv(request.getAllergyCodes()));
 
         // 5. 비밀번호 암호화 및 저장
@@ -109,23 +87,10 @@ public class AuthService {
     }
 
     // =========================================================================
-    // 2. 영양사 회원가입 (학교 정보 포함)
+    // 2. 영양사 회원가입 (학교 정보 동시 등록)
     // =========================================================================
-    /**
-     * [영양사 회원가입 및 학교 등록]
-     *
-     * @param request 영양사 정보 + 학교 정보(school_info)
-     * @return 가입된 영양사 및 학교 정보 (DietitianSignUpResponse)
-     *
-     * 로직:
-     * 1. 영양사 아이디 중복 확인
-     * 2. 영양사 엔티티 생성 및 저장 (전화번호 포함)
-     * 3. 학교 정보 중복 확인 (이미 등록된 표준학교코드인지 확인)
-     * 4. 학교 엔티티 생성 및 저장 (영양사와 1:1 연관관계 설정)
-     */
     @Transactional
     public DietitianSignUpResponse signupDietitian(DietitianSignUpRequest request) {
-
         String username = request.getUsername().trim();
 
         // 1. 영양사 아이디 중복 확인
@@ -139,23 +104,21 @@ public class AuthService {
         dietitian.setPasswordHash(passwordEncoder.encode(request.getPw()));
         dietitian.setName(request.getName());
         dietitian.setEmail(request.getEmail());
-
-        // [중요] DTO에서 받은 전화번호를 엔티티에 저장
         dietitian.setPhone(request.getPhone());
 
         Dietitian savedDietitian = dietitianRepository.save(dietitian);
 
-        // 3. 학교 정보 처리 (요청 DTO 내부에 있는 school_info 추출)
+        // 3. 학교 정보 처리
         SchoolRequest schoolReq = request.getSchoolInfo();
 
-        // 3-1. 학교 중복 가입 방지 (이미 시스템에 등록된 표준학교코드인지 확인)
+        // 3-1. 학교 중복 가입 방지
         if (schoolRepository.findBySchoolCode(schoolReq.getSchoolCode()).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 시스템에 등록된 학교입니다.");
         }
 
-        // 3-2. 학교 엔티티 빌드 (영양사와 연관관계 설정)
+        // 3-2. 학교 엔티티 빌드 (영양사와 연결)
         School school = School.builder()
-                .dietitian(savedDietitian) // [핵심] 방금 저장된 영양사와 연결 (FK)
+                .dietitian(savedDietitian)
                 .schoolName(schoolReq.getSchoolName())
                 .regionCode(schoolReq.getRegionCode())
                 .schoolCode(schoolReq.getSchoolCode())
@@ -163,101 +126,114 @@ public class AuthService {
                 .schoolType(schoolReq.getSchoolType())
                 .build();
 
-        // 3-3. 학교 저장
         School savedSchool = schoolRepository.save(school);
 
-        // 4. 결과 반환 (영양사 정보와 학교 정보를 모두 포함한 DTO 반환)
         return new DietitianSignUpResponse(savedDietitian, savedSchool);
     }
 
     // =========================================================================
     // 3. 학생 로그인
     // =========================================================================
-    /**
-     * [학생 로그인]
-     *
-     * @param request 아이디, 비밀번호
-     * @return JWT 토큰 문자열 (Payload에 Role: ROLE_STUDENT 포함)
-     *
-     * 로직:
-     * 1. 아이디로 학생 조회 (없으면 예외)
-     * 2. 비밀번호 일치 여부 확인 (없으면 예외)
-     * 3. 인증 성공 시 토큰 발급
-     */
     @Transactional(readOnly = true)
     public String login(LoginRequest request) {
-
-        // 1. 학생 조회
         Student student = studentRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "존재하지 않는 아이디입니다."));
 
-        // 2. 비밀번호 검증
         if (!passwordEncoder.matches(request.getPw(), student.getPasswordHash())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "비밀번호가 일치하지 않습니다.");
         }
 
-        // 3. 토큰 생성 및 반환
         return jwtProvider.createToken(
                 student.getId(),
                 student.getUsername(),
-                student.getSchoolId(), // 학생이 소속된 학교 ID
-                "ROLE_STUDENT"         // 권한 부여
+                student.getSchoolId(),
+                "ROLE_STUDENT"
         );
     }
 
     // =========================================================================
     // 4. 영양사 로그인
     // =========================================================================
-    /**
-     * [영양사 로그인]
-     *
-     * @param request 아이디, 비밀번호
-     * @return JWT 토큰 문자열 (Payload에 Role: ROLE_DIETITIAN 포함)
-     *
-     * 특징:
-     * - 영양사가 관리하는 학교의 ID를 조회하여 토큰에 포함시킵니다.
-     * - 학교가 아직 등록되지 않은 경우(예외 케이스) schoolId는 null이 될 수 있습니다.
-     */
     @Transactional(readOnly = true)
     public String loginDietitian(LoginRequest request) {
-
-        // 1. 영양사 조회
         Dietitian dietitian = dietitianRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "존재하지 않는 영양사 아이디입니다."));
 
-        // 2. 비밀번호 검증
         if (!passwordEncoder.matches(request.getPw(), dietitian.getPasswordHash())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "비밀번호가 일치하지 않습니다.");
         }
 
-        // 3. 학교 ID 조회 (영양사와 연결된 학교 찾기)
         School school = schoolRepository.findByDietitian_Id(dietitian.getId()).orElse(null);
         Long schoolId = (school != null) ? school.getId() : null;
 
-        // 4. JWT 토큰 생성 (권한: ROLE_DIETITIAN)
         return jwtProvider.createToken(
                 dietitian.getId(),
                 dietitian.getUsername(),
                 schoolId,
-                "ROLE_DIETITIAN" // 영양사 권한 부여
+                "ROLE_DIETITIAN"
         );
     }
 
     // =========================================================================
-    // 5. 학생 정보 수정
+    // 5. 아이디 찾기 (이름 + 전화번호)
+    // =========================================================================
+    @Transactional(readOnly = true)
+    public String findUsername(FindIdRequest request) {
+        // 전화번호 정규화 (숫자만 남김)
+        String purePhone = request.getPhone().replaceAll("[^0-9]", "");
+
+        // 1. 학생 테이블 조회
+        var studentOpt = studentRepository.findByNameAndPhone(request.getName(), purePhone);
+        if (studentOpt.isPresent()) {
+            return studentOpt.get().getUsername();
+        }
+
+        // 2. 영양사 테이블 조회
+        var dietitianOpt = dietitianRepository.findByNameAndPhone(request.getName(), purePhone);
+        if (dietitianOpt.isPresent()) {
+            return dietitianOpt.get().getUsername();
+        }
+
+        throw new ResponseStatusException(HttpStatus.NOT_FOUND, "입력하신 정보와 일치하는 계정이 없습니다.");
+    }
+
+    // =========================================================================
+    // 6. 비밀번호 찾기 (아이디 + 이름 + 전화번호 -> 임시 비번 발급)
+    // =========================================================================
+    @Transactional
+    public String resetPassword(FindPasswordRequest request) {
+        String purePhone = request.getPhone().replaceAll("[^0-9]", "");
+
+        // 임시 비밀번호 생성 (UUID 앞 8자리)
+        String tempPassword = UUID.randomUUID().toString().substring(0, 8);
+        String encodedPassword = passwordEncoder.encode(tempPassword);
+
+        // 1. 학생 확인 및 변경
+        var studentOpt = studentRepository.findByUsernameAndNameAndPhone(
+                request.getUsername(), request.getName(), purePhone);
+        if (studentOpt.isPresent()) {
+            studentOpt.get().setPasswordHash(encodedPassword);
+            return tempPassword;
+        }
+
+        // 2. 영양사 확인 및 변경
+        var dietitianOpt = dietitianRepository.findByUsernameAndNameAndPhone(
+                request.getUsername(), request.getName(), purePhone);
+        if (dietitianOpt.isPresent()) {
+            dietitianOpt.get().setPasswordHash(encodedPassword);
+            return tempPassword;
+        }
+
+        throw new ResponseStatusException(HttpStatus.NOT_FOUND, "입력하신 정보와 일치하는 계정이 없습니다.");
+    }
+
+    // =========================================================================
+    // 7. 학생 정보 수정
     // =========================================================================
     @Transactional
     public SignUpResponse updateStudentProfile(Long studentId, StudentUpdateRequest request) {
         Student student = studentRepository.findById(studentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "학생 정보를 찾을 수 없습니다."));
-
-        // 학교 변경 로직 추가 (Student 엔티티 수정 사항 반영)
-        // 만약 DTO에 newSchoolId가 있다면 아래와 같이 처리 가능
-        // if (request.getNewSchoolId() != null) {
-        //     School newSchool = schoolRepository.findById(request.getNewSchoolId())
-        //             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "학교를 찾을 수 없습니다."));
-        //     student.setSchool(newSchool);
-        // }
 
         if (request.getName() != null) student.setName(request.getName());
         if (request.getPhone() != null) student.setPhone(request.getPhone());
@@ -272,25 +248,30 @@ public class AuthService {
     }
 
     // =========================================================================
-    // 6. 학생 비밀번호 변경
+    // 8. 학생 비밀번호 변경 (로그인 상태에서 변경)
     // =========================================================================
     @Transactional
     public void changeStudentPassword(Long studentId, PasswordChangeRequest request) {
         Student student = studentRepository.findById(studentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "학생 정보를 찾을 수 없습니다."));
 
+        // 현재 비밀번호 확인
         if (!passwordEncoder.matches(request.getCurrentPassword(), student.getPasswordHash())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "현재 비밀번호가 일치하지 않습니다.");
         }
 
+        // 새 비밀번호가 기존과 같은지 확인
         if (passwordEncoder.matches(request.getNewPassword(), student.getPasswordHash())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "새로운 비밀번호는 기존 비밀번호와 달라야 합니다.");
         }
 
+        // 변경
         student.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
     }
 
-    // 유틸리티 메서드
+    // =========================================================================
+    // 유틸리티: 알레르기 리스트 -> CSV 변환
+    // =========================================================================
     private String toAllergyCsv(List<Integer> codes) {
         if (codes == null || codes.isEmpty()) return "";
         return codes.stream()
@@ -301,5 +282,4 @@ public class AuthService {
                 .map(String::valueOf)
                 .collect(Collectors.joining(","));
     }
-
 }

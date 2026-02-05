@@ -17,7 +17,30 @@ public class AuthController {
 
     private final AuthService authService;
 
-    // 학생 관련
+    // =========================================================================
+    // 1. 공통 기능 (아이디 / 비밀번호 찾기)
+    // =========================================================================
+
+    // 아이디 찾기
+    @PostMapping("/find-id")
+    public ResponseEntity<Map<String, String>> findId(@RequestBody FindIdRequest request) {
+        String username = authService.findUsername(request);
+        return ResponseEntity.ok(Map.of("username", username));
+    }
+
+    // 비밀번호 찾기 (임시 비밀번호 발급)
+    @PostMapping("/find-pw")
+    public ResponseEntity<Map<String, String>> findPw(@RequestBody FindPasswordRequest request) {
+        String tempPassword = authService.resetPassword(request);
+        return ResponseEntity.ok(Map.of(
+                "message", "임시 비밀번호가 발급되었습니다.",
+                "temporaryPassword", tempPassword
+        ));
+    }
+
+    // =========================================================================
+    // 2. 학생 (Student)
+    // =========================================================================
     @PostMapping("/signup")
     public ResponseEntity<SignUpResponse> signup(@Valid @RequestBody SignUpRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(authService.signupStudent(request));
@@ -29,7 +52,9 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("accessToken", token));
     }
 
-    // 영양사 관련
+    // =========================================================================
+    // 3. 영양사 (Dietitian)
+    // =========================================================================
     @PostMapping("/signup/dietitian")
     public ResponseEntity<DietitianSignUpResponse> signupDietitian(@Valid @RequestBody DietitianSignUpRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(authService.signupDietitian(request));

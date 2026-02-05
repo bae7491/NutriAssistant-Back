@@ -6,9 +6,15 @@ import java.util.Optional;
 
 public interface DietitianRepository extends JpaRepository<Dietitian, Long> {
 
-    // 아이디 중복 체크용
+    // ✅ 회원가입 중복 체크용
     boolean existsByUsername(String username);
 
-    // 로그인 및 학교 등록 시 사용
+    // ✅ 로그인용
     Optional<Dietitian> findByUsername(String username);
+
+    // ✅ [추가] 아이디 찾기용 (이름 + 전화번호)
+    Optional<Dietitian> findByNameAndPhone(String name, String phone);
+
+    // ✅ [추가] 비밀번호 찾기용 (아이디 + 이름 + 전화번호)
+    Optional<Dietitian> findByUsernameAndNameAndPhone(String username, String name, String phone);
 }
