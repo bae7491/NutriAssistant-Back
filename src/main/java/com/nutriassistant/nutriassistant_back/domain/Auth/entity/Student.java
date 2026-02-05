@@ -2,7 +2,7 @@ package com.nutriassistant.nutriassistant_back.domain.Auth.entity;
 
 import com.nutriassistant.nutriassistant_back.domain.Auth.util.PhoneNumberUtil;
 import com.nutriassistant.nutriassistant_back.domain.School.entity.School;
-import com.nutriassistant.nutriassistant_back.global.enums.UserStatus; // ★ Enum 임포트 필수
+import com.nutriassistant.nutriassistant_back.global.enums.UserStatus;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -116,5 +116,11 @@ public class Student {
     // 학교 ID 반환 편의 메서드
     public Long getSchoolId() {
         return (this.school != null) ? this.school.getId() : null;
+    }
+
+    // [수정] DTO 호환성을 위한 메서드 구현
+    // 별도의 email 컬럼이 없으므로 로그인 ID인 username을 반환합니다.
+    public String getEmail() {
+        return this.username;
     }
 }
