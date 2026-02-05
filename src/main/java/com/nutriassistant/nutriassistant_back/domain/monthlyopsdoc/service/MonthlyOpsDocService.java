@@ -8,11 +8,12 @@ import com.nutriassistant.nutriassistant_back.domain.metrics.entity.SkipMeal;
 import com.nutriassistant.nutriassistant_back.domain.metrics.repository.LeftoverRepository;
 import com.nutriassistant.nutriassistant_back.domain.metrics.repository.SkipMealRepository;
 import com.nutriassistant.nutriassistant_back.domain.monthlyopsdoc.dto.MonthlyOpsDocDto;
-import com.nutriassistant.nutriassistant_back.domain.monthlyopsdoc.entity.FileAttachment;
 import com.nutriassistant.nutriassistant_back.domain.monthlyopsdoc.entity.MonthlyOpsDoc;
 import com.nutriassistant.nutriassistant_back.domain.monthlyopsdoc.entity.ReportStatus;
-import com.nutriassistant.nutriassistant_back.domain.monthlyopsdoc.repository.FileAttachmentRepository;
 import com.nutriassistant.nutriassistant_back.domain.monthlyopsdoc.repository.MonthlyOpsDocRepository;
+import com.nutriassistant.nutriassistant_back.domain.Attachment.entity.Attachment;
+import com.nutriassistant.nutriassistant_back.domain.Attachment.entity.RelatedType;
+import com.nutriassistant.nutriassistant_back.domain.Attachment.repository.AttachmentRepository;
 
 import com.nutriassistant.nutriassistant_back.domain.review.entity.Review;
 import com.nutriassistant.nutriassistant_back.domain.review.repository.ReviewRepository;
@@ -20,6 +21,7 @@ import com.nutriassistant.nutriassistant_back.domain.MealPlan.entity.MealPlanMen
 import com.nutriassistant.nutriassistant_back.domain.MealPlan.repository.MealPlanMenuRepository;
 import com.nutriassistant.nutriassistant_back.domain.reviewanalysis.entity.ReviewAnalysis;
 import com.nutriassistant.nutriassistant_back.domain.reviewanalysis.repository.ReviewAnalysisRepository;
+import com.nutriassistant.nutriassistant_back.global.aws.S3Uploader;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,7 +47,7 @@ import java.util.stream.Collectors;
 public class MonthlyOpsDocService {
 
     private final MonthlyOpsDocRepository monthlyOpsDocRepository;
-    private final FileAttachmentRepository fileAttachmentRepository;
+    private final AttachmentRepository attachmentRepository;
     private final ObjectMapper objectMapper;
     private final RestClient restClient;
     private final SkipMealRepository skipMealRepository;
@@ -53,6 +55,8 @@ public class MonthlyOpsDocService {
     private final ReviewRepository reviewRepository;
     private final MealPlanMenuRepository mealPlanMenuRepository;
     private final ReviewAnalysisRepository reviewAnalysisRepository;
+    private final ReportPdfGenerator reportPdfGenerator;
+    private final S3Uploader s3Uploader;
 
     // =========================================================================
     // 1. [Create] Create Operation Document (Stats -> AI Analysis -> DB Save)
@@ -141,6 +145,46 @@ public class MonthlyOpsDocService {
 
         MonthlyOpsDoc savedDoc = monthlyOpsDocRepository.save(doc);
         log.info("💾 Report saved to DB: ID={}", savedDoc.getId());
+
+        // 1-8. Generate PDF and Upload to S3
+        try {
+            Object dataObj = analyzedResult.get("data") != null ? analyzedResult.get("data") : analyzedResult;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> reportDataMap = dataObj instanceof Map
+                    ? (Map<String, Object>) dataObj
+                    : objectMapper.readValue(reportContentJson, Map.class);
+
+            // PDF 생성
+            byte[] pdfBytes = reportPdfGenerator.generatePdf(
+                    reportDataMap,
+                    request.getYear(),
+                    request.getMonth(),
+                    request.getTitle()
+            );
+            log.info("📄 PDF Generated: {} bytes", pdfBytes.length);
+
+            // S3에 업로드 (schools/{schoolId}/reports/{reportId}/report_YYYY_MM.pdf)
+            String s3Key = String.format("schools/%d/reports/%d/report_%04d_%02d.pdf",
+                    schoolId, savedDoc.getId(), request.getYear(), request.getMonth());
+            String s3Url = s3Uploader.uploadBytes(pdfBytes, s3Key, "application/pdf");
+            log.info("☁️ PDF uploaded to S3: {}", s3Url);
+
+            // Attachment 테이블에 저장
+            Attachment attachment = new Attachment(
+                    RelatedType.REPORT,
+                    savedDoc.getId(),
+                    String.format("report_%04d_%02d.pdf", request.getYear(), request.getMonth()),
+                    s3Key,
+                    "application/pdf",
+                    (long) pdfBytes.length
+            );
+            attachmentRepository.save(attachment);
+            log.info("💾 Attachment saved: ID={}", attachment.getId());
+
+        } catch (Exception e) {
+            log.error("⚠️ PDF generation or S3 upload failed, but report is saved", e);
+            // PDF 생성/업로드 실패해도 리포트는 저장됨
+        }
 
         return getMonthlyOpsDocDetail(savedDoc.getId(), schoolId);
     }
@@ -380,8 +424,16 @@ public class MonthlyOpsDocService {
 
         Page<MonthlyOpsDoc> pageResult = monthlyOpsDocRepository.findAllBySchoolId(schoolId, pageable);
 
-        List<MonthlyOpsDocDto.Response> docList = pageResult.getContent().stream()
-                .map(doc -> mapToResponse(doc, null))
+        List<MonthlyOpsDocDto.ListItemResponse> docList = pageResult.getContent().stream()
+                .map(doc -> MonthlyOpsDocDto.ListItemResponse.builder()
+                        .id(doc.getId())
+                        .school_id(doc.getSchoolId())
+                        .title(doc.getTitle())
+                        .year(doc.getYear())
+                        .month(doc.getMonth())
+                        .status(doc.getStatus().toString())
+                        .created_at(doc.getCreatedAt())
+                        .build())
                 .collect(Collectors.toList());
 
         MonthlyOpsDocDto.Pagination pagination = MonthlyOpsDocDto.Pagination.builder()
@@ -409,8 +461,9 @@ public class MonthlyOpsDocService {
             throw new IllegalArgumentException("Operation document not found.");
         }
 
-        List<FileAttachment> attachments = fileAttachmentRepository
-                .findAllByRelatedTypeAndRelatedId("OPS", id);
+        // Attachment 테이블에서 REPORT 타입으로 조회
+        List<Attachment> attachments = attachmentRepository
+                .findByRelatedTypeAndRelatedId(RelatedType.REPORT, id);
 
         List<MonthlyOpsDocDto.FileResponse> files = attachments.stream()
                 .map(file -> MonthlyOpsDocDto.FileResponse.builder()
@@ -418,6 +471,7 @@ public class MonthlyOpsDocService {
                         .file_name(file.getFileName())
                         .file_type(file.getFileType())
                         .s3_path(file.getS3Path())
+                        .s3_url(s3Uploader.getS3Url(file.getS3Path()))
                         .created_at(file.getCreatedAt())
                         .build())
                 .collect(Collectors.toList());
@@ -452,7 +506,32 @@ public class MonthlyOpsDocService {
     }
 
     // =========================================================================
-    // 4. Helper Methods
+    // 4. Download
+    // =========================================================================
+    public String getDownloadUrl(Long reportId, Long schoolId) {
+        // 문서 조회 및 권한 확인
+        MonthlyOpsDoc doc = monthlyOpsDocRepository.findById(reportId)
+                .orElseThrow(() -> new IllegalArgumentException("운영 자료를 찾을 수 없습니다."));
+
+        if (!doc.getSchoolId().equals(schoolId)) {
+            throw new IllegalArgumentException("운영 자료를 찾을 수 없습니다.");
+        }
+
+        // 첨부파일 조회
+        List<Attachment> attachments = attachmentRepository
+                .findByRelatedTypeAndRelatedId(RelatedType.REPORT, reportId);
+
+        if (attachments.isEmpty()) {
+            throw new IllegalArgumentException("다운로드 가능한 파일이 없습니다.");
+        }
+
+        // 첫 번째 파일의 S3 URL 반환
+        String s3Path = attachments.get(0).getS3Path();
+        return s3Uploader.getS3Url(s3Path);
+    }
+
+    // =========================================================================
+    // 5. Helper Methods
     // =========================================================================
     public Optional<MonthlyOpsDoc> findByYearAndMonth(int year, int month) {
         return monthlyOpsDocRepository.findByYearAndMonth(year, month);

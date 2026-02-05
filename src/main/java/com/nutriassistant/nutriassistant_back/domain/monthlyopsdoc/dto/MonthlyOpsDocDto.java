@@ -61,15 +61,35 @@ public class MonthlyOpsDocDto {
     }
 
     // =================================================================
-    // 3. 응답 (Response) DTO - 목록 조회
+    // 3. 응답 (Response) DTO - 목록 조회용 (report_content, files 제외)
     // =================================================================
     @Getter
     @Setter
     @NoArgsConstructor
     @AllArgsConstructor
     @Builder
+    public static class ListItemResponse {
+        private Long id;
+
+        @JsonProperty("school_id")
+        private Long school_id;
+
+        private String title;
+        private Integer year;
+        private Integer month;
+        private String status;
+
+        @JsonProperty("created_at")
+        private LocalDateTime created_at;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
     public static class ListResponse {
-        private List<Response> reports;
+        private List<ListItemResponse> reports;
         private Pagination pagination;
     }
 
@@ -92,6 +112,9 @@ public class MonthlyOpsDocDto {
 
         @JsonProperty("s3_path")
         private String s3_path;
+
+        @JsonProperty("s3_url")
+        private String s3_url;
 
         @JsonProperty("created_at")
         private LocalDateTime created_at;

@@ -6,6 +6,9 @@ import com.nutriassistant.nutriassistant_back.global.ApiResponse;
 import com.nutriassistant.nutriassistant_back.global.auth.CurrentUser;
 import com.nutriassistant.nutriassistant_back.global.auth.UserContext;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -67,16 +70,17 @@ public class MonthlyOpsDocController {
     /**
      * 4. 월간 운영 자료 다운로드
      * GET /reports/monthly/{reportId}/download
-     *
-     * TODO: 파일 다운로드 구현 필요 (S3 연동 후)
+     * S3 URL로 리다이렉트하여 파일 다운로드
      */
     @GetMapping("/{reportId}/download")
-    public ApiResponse<String> downloadMonthlyOpsDoc(
-            @PathVariable Long reportId,
-            @RequestParam(required = false) Long file_id,
-            @RequestParam(defaultValue = "PDF") String format) {
+    public ResponseEntity<Void> downloadMonthlyOpsDoc(
+            @CurrentUser UserContext user,
+            @PathVariable Long reportId) {
 
-        // TODO: S3에서 파일 다운로드 구현
-        return ApiResponse.error("파일 다운로드 기능은 구현 예정입니다.");
+        String downloadUrl = monthlyOpsDocService.getDownloadUrl(reportId, user.getSchoolId());
+
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .header(HttpHeaders.LOCATION, downloadUrl)
+                .build();
     }
 }
