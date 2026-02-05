@@ -8,6 +8,7 @@ export DB_NAME="nutriassistant"
 export DB_USERNAME="admin"
 export DB_PASSWORD="ktaivle18"
 export FAST_API_URL="172.31.41.226"
+export NEIS_API_KEY="1cdd3fa43f8c4fe095de9a82f5a598f6"
 
 cd /home/ec2-user/app
 nohup java -jar build/libs/nutriassistant-back-0.0.1-SNAPSHOT.jar > /home/ec2-user/app.log 2>&1 &
