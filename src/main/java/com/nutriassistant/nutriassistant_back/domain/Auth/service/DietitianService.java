@@ -7,6 +7,7 @@ import com.nutriassistant.nutriassistant_back.domain.Auth.DTO.DietitianUpdateReq
 import com.nutriassistant.nutriassistant_back.domain.Auth.DTO.PasswordChangeRequest;
 import com.nutriassistant.nutriassistant_back.domain.Auth.entity.Dietitian;
 import com.nutriassistant.nutriassistant_back.domain.Auth.repository.DietitianRepository;
+import com.nutriassistant.nutriassistant_back.domain.Auth.repository.RefreshTokenRepository;
 import com.nutriassistant.nutriassistant_back.domain.School.dto.SchoolRequest;
 import com.nutriassistant.nutriassistant_back.domain.School.dto.SchoolResponse;
 import com.nutriassistant.nutriassistant_back.domain.School.entity.School;
@@ -30,6 +31,34 @@ public class DietitianService {
     private final DietitianRepository dietitianRepository;
     private final SchoolRepository schoolRepository;
     private final PasswordEncoder passwordEncoder;
+    private final RefreshTokenRepository refreshTokenRepository; // 리프레시 토큰 삭제용
+
+    /**
+     * ✅ [회원 탈퇴] 영양사 탈퇴 (Soft Delete)
+     * - 학교 데이터는 남겨두되, 담당자 연결만 해제합니다.
+     */
+    @Transactional
+    public void withdrawDietitian(Long dietitianId) {
+        // 1. 영양사 조회
+        Dietitian dietitian = dietitianRepository.findById(dietitianId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "영양사 정보를 찾을 수 없습니다."));
+
+        // 2. 담당 학교와의 연결 해제 (학교 데이터 자체는 유지)
+        schoolRepository.findByDietitian_Id(dietitianId).ifPresent(school -> {
+            school.setDietitian(null); // 연관관계 해제
+            schoolRepository.save(school);
+            log.info("학교 [{}]에서 영양사 연결이 해제되었습니다.", school.getSchoolName());
+        });
+
+        // 3. 영양사 상태 변경 (Soft Delete)
+        dietitian.withdraw();
+        dietitianRepository.save(dietitian);
+
+        // 4. 보안 조치: 리프레시 토큰 삭제 (로그인 원천 차단)
+        refreshTokenRepository.deleteByUsername(dietitian.getUsername());
+
+        log.info("영양사 계정 탈퇴 처리 완료: ID={}", dietitianId);
+    }
 
     /**
      * ✅ [회원가입] 영양사 정보 생성 + 학교 정보 등록
@@ -60,16 +89,13 @@ public class DietitianService {
         School savedSchool = null;
 
         if (sr != null) {
-            // ★ 수정됨: new School() 대신 builder() 사용
-            // Entity 정의상 schoolName, schoolCode 등은 Setter가 없으므로 생성 시점에 넣어야 합니다.
             School school = School.builder()
-                    .dietitian(savedDietitian) // 연관관계 설정
+                    .dietitian(savedDietitian)
                     .schoolName(sr.getSchoolName())
                     .regionCode(sr.getRegionCode())
                     .schoolCode(sr.getSchoolCode())
                     .address(sr.getAddress())
                     .schoolType(sr.getSchoolType())
-                    // 선택적 필드 (운영 정보) - Builder에 포함하거나, 생성 후 Setter 사용 가능
                     .phone(sr.getPhone())
                     .email(sr.getEmail())
                     .studentCount(sr.getStudentCount())
@@ -97,7 +123,6 @@ public class DietitianService {
         dietitian.setName(req.getName());
         dietitian.setPhone(req.getPhone());
 
-        // 명시적 save (선택사항, Dirty Checking 작동함)
         Dietitian saved = dietitianRepository.save(dietitian);
         School school = schoolRepository.findByDietitian_Id(dietitianId).orElse(null);
 
@@ -121,8 +146,6 @@ public class DietitianService {
 
     /**
      * ✅ [학교 정보 등록/수정] (Upsert)
-     * - 기존 학교가 있으면 -> 운영 정보만 업데이트 (학교 코드 등 식별자는 변경 불가)
-     * - 기존 학교가 없으면 -> 새로 생성
      */
     @Transactional
     public SchoolResponse upsertSchool(Long dietitianId, SchoolRequest req) {
@@ -133,8 +156,6 @@ public class DietitianService {
 
         School school;
         if (existingSchoolOp.isPresent()) {
-            // [CASE 1] 이미 학교가 등록된 경우 -> 운영 정보만 수정
-            // (주의: Entity 설계상 SchoolName, SchoolCode, RegionCode는 수정 불가능하도록 Setter를 막았습니다.)
             school = existingSchoolOp.get();
 
             school.setPhone(req.getPhone());
@@ -149,7 +170,6 @@ public class DietitianService {
             log.info("기존 학교 정보 업데이트 완료: {}", school.getSchoolName());
 
         } else {
-            // [CASE 2] 학교가 없는 경우 -> 새로 생성 (Builder 사용)
             school = School.builder()
                     .dietitian(dietitian)
                     .schoolName(req.getSchoolName())

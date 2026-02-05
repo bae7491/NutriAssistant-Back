@@ -1,6 +1,7 @@
 package com.nutriassistant.nutriassistant_back.domain.Auth.entity;
 
 import com.nutriassistant.nutriassistant_back.domain.Auth.util.PhoneNumberUtil;
+import com.nutriassistant.nutriassistant_back.global.enums.UserStatus; // UserStatus Enum 임포트
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -36,6 +37,11 @@ public class Dietitian {
     @Column(name = "email", nullable = false, length = 100)
     private String email;
 
+    // ▼▼▼ [추가] 회원 상태 관리 필드 ▼▼▼
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private UserStatus status = UserStatus.ACTIVE;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -46,8 +52,12 @@ public class Dietitian {
 
     public Dietitian() {}
 
-    // Getters & Setters
+    // ▼▼▼ [추가] 탈퇴 비즈니스 로직 ▼▼▼
+    public void withdraw() {
+        this.status = UserStatus.WITHDRAWN;
+    }
 
+    // Getters & Setters
     public Long getId() { return id; }
 
     public String getUsername() { return username; }
@@ -56,10 +66,7 @@ public class Dietitian {
     public String getPasswordHash() { return passwordHash; }
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
 
-    // ▼▼▼ [추가] CustomUserDetails 호환용 편의 메서드 ▼▼▼
-    public String getPw() {
-        return this.passwordHash;
-    }
+    public String getPw() { return this.passwordHash; }
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
@@ -69,6 +76,9 @@ public class Dietitian {
 
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
+
+    public UserStatus getStatus() { return status; }
+    public void setStatus(UserStatus status) { this.status = status; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

@@ -2,6 +2,7 @@ package com.nutriassistant.nutriassistant_back.domain.Auth.entity;
 
 import com.nutriassistant.nutriassistant_back.domain.Auth.util.PhoneNumberUtil;
 import com.nutriassistant.nutriassistant_back.domain.School.entity.School;
+import com.nutriassistant.nutriassistant_back.global.enums.UserStatus; // ★ Enum 임포트 필수
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -17,14 +18,10 @@ public class Student {
     @Column(name = "id")
     private Long id;
 
-    // ▼▼▼ [수정 포인트] ▼▼▼
-    // updatable = false를 제거했습니다.
-    // 이유: 학생이 전학을 가거나, 학년이 바뀌면서 학교가 변경될 수 있는 가능성을 열어두기 위함입니다.
+    // [수정 포인트 1] updatable = false 제거 완료 (전학 시 학교 변경 가능)
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "school_id", nullable = false) // ★ updatable = false 삭제됨
+    @JoinColumn(name = "school_id", nullable = false)
     private School school;
-
-    // ... (나머지 코드는 그대로 유지) ...
 
     @Column(name = "username", nullable = false, length = 255, updatable = false)
     private String username;
@@ -47,6 +44,11 @@ public class Student {
     @Column(name = "allergy_codes", length = 100)
     private String allergyCodes;
 
+    // [수정 포인트 2] 회원 상태 필드 추가 (탈퇴/휴면 관리용)
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private UserStatus status = UserStatus.ACTIVE; // 기본값: 활동 중
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -57,7 +59,18 @@ public class Student {
 
     public Student() {}
 
+    // =======================================================
+    // 비즈니스 로직 메서드
+    // =======================================================
+
+    // [추가] 회원 탈퇴 처리 (상태만 변경)
+    public void withdraw() {
+        this.status = UserStatus.WITHDRAWN;
+    }
+
+    // =======================================================
     // Getters & Setters
+    // =======================================================
     public Long getId() { return id; }
 
     public School getSchool() { return school; }
@@ -81,11 +94,15 @@ public class Student {
     public Integer getClassNo() { return classNo; }
     public void setClassNo(Integer classNo) { this.classNo = classNo; }
 
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public LocalDateTime getUpdatedAt() { return updatedAt; }
-
     public String getAllergyCodes() { return allergyCodes; }
     public void setAllergyCodes(String allergyCodes) { this.allergyCodes = allergyCodes; }
+
+    // [추가] 상태 Getter/Setter
+    public UserStatus getStatus() { return status; }
+    public void setStatus(UserStatus status) { this.status = status; }
+
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
 
     // 전화번호 정규화
     @PrePersist

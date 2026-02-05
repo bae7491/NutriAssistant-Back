@@ -24,7 +24,7 @@ public class School {
     // 영양사(Dietitian)와 1:1 관계
     // (참고: nullable = false면, 영양사 없이는 학교 데이터가 DB에 존재할 수 없음)
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "dietitian_id", nullable = false)
+    @JoinColumn(name = "dietitian_id", nullable = true) // ★ 탈퇴 시 null 허용을 위해 true로 변경
     private Dietitian dietitian;
 
     // =======================================================

@@ -246,26 +246,24 @@ public class AuthService {
     // =========================================================================
     // 5. 학생 정보 수정
     // =========================================================================
-    /**
-     * [학생 프로필 업데이트]
-     *
-     * @param studentId 대상 학생 PK
-     * @param request 변경할 정보 (이름, 전화번호, 학년, 반, 알레르기)
-     * @return 수정된 학생 정보 DTO
-     */
     @Transactional
     public SignUpResponse updateStudentProfile(Long studentId, StudentUpdateRequest request) {
-
         Student student = studentRepository.findById(studentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "학생 정보를 찾을 수 없습니다."));
 
-        // null이 아닌 필드만 업데이트 (Dynamic Update 효과)
+        // 학교 변경 로직 추가 (Student 엔티티 수정 사항 반영)
+        // 만약 DTO에 newSchoolId가 있다면 아래와 같이 처리 가능
+        // if (request.getNewSchoolId() != null) {
+        //     School newSchool = schoolRepository.findById(request.getNewSchoolId())
+        //             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "학교를 찾을 수 없습니다."));
+        //     student.setSchool(newSchool);
+        // }
+
         if (request.getName() != null) student.setName(request.getName());
         if (request.getPhone() != null) student.setPhone(request.getPhone());
         if (request.getGrade() != null) student.setGrade(request.getGrade());
         if (request.getClassNo() != null) student.setClassNo(request.getClassNo());
 
-        // 알레르기 정보 업데이트 (List -> CSV 변환)
         if (request.getAllergyCodes() != null) {
             student.setAllergyCodes(toAllergyCsv(request.getAllergyCodes()));
         }
@@ -276,54 +274,32 @@ public class AuthService {
     // =========================================================================
     // 6. 학생 비밀번호 변경
     // =========================================================================
-    /**
-     * [학생 비밀번호 변경]
-     *
-     * @param studentId 대상 학생 PK
-     * @param request 현재 비밀번호, 새 비밀번호
-     *
-     * 로직:
-     * 1. 현재 비밀번호 일치 여부 확인 (틀리면 예외)
-     * 2. 새 비밀번호가 기존 비밀번호와 다른지 확인 (같으면 예외)
-     * 3. 새 비밀번호 암호화 후 저장
-     */
     @Transactional
     public void changeStudentPassword(Long studentId, PasswordChangeRequest request) {
         Student student = studentRepository.findById(studentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "학생 정보를 찾을 수 없습니다."));
 
-        // 1. 현재 비밀번호 검증
         if (!passwordEncoder.matches(request.getCurrentPassword(), student.getPasswordHash())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "현재 비밀번호가 일치하지 않습니다.");
         }
 
-        // 2. 새 비밀번호 중복 검사 (보안 권장사항)
         if (passwordEncoder.matches(request.getNewPassword(), student.getPasswordHash())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "새로운 비밀번호는 기존 비밀번호와 달라야 합니다.");
         }
 
-        // 3. 변경 및 저장 (Dirty Checking으로 자동 Update)
         student.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
     }
 
-    // =========================================================================
     // 유틸리티 메서드
-    // =========================================================================
-    /**
-     * 알레르기 코드 리스트를 CSV 문자열로 변환하는 헬퍼 메서드
-     * 예: [1, 3, 5] -> "1,3,5"
-     * * - null이나 빈 리스트가 들어오면 빈 문자열 반환
-     * - 1~19 사이의 유효한 코드만 필터링
-     * - 중복 제거 및 정렬 수행
-     */
     private String toAllergyCsv(List<Integer> codes) {
         if (codes == null || codes.isEmpty()) return "";
         return codes.stream()
                 .filter(Objects::nonNull)
-                .filter(c -> c >= 1 && c <= 19) // 1~19번 알레르기 코드만 유효
-                .distinct() // 중복 제거
-                .sorted()   // 오름차순 정렬
+                .filter(c -> c >= 1 && c <= 19)
+                .distinct()
+                .sorted()
                 .map(String::valueOf)
                 .collect(Collectors.joining(","));
     }
+
 }
