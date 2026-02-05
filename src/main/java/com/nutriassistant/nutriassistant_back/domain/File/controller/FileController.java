@@ -19,6 +19,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/files")
 @RequiredArgsConstructor
@@ -28,7 +30,7 @@ public class FileController {
 
     private final FileService fileService;
 
-    @Operation(summary = "파일 업로드", description = "게시판 등에 첨부할 파일을 S3에 업로드합니다.")
+    @Operation(summary = "파일 업로드 (다중)", description = "게시판 등에 첨부할 파일을 S3에 업로드합니다. 최대 3개까지 가능합니다.")
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "201",
@@ -36,7 +38,7 @@ public class FileController {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "400",
-                    description = "요청값 오류 (파일 누락 등)"
+                    description = "요청값 오류 (파일 누락, 파일 개수 초과 등)"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "401",
@@ -56,9 +58,9 @@ public class FileController {
             )
     })
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ApiResponse<FileUploadResponse>> uploadFile(
-            @Parameter(description = "업로드할 파일", required = true)
-            @RequestParam("file") MultipartFile file,
+    public ResponseEntity<ApiResponse<List<FileUploadResponse>>> uploadFiles(
+            @Parameter(description = "업로드할 파일들 (최대 3개)", required = true)
+            @RequestParam("files") List<MultipartFile> files,
 
             @Parameter(description = "연결 대상 타입 (BOARD, COMMENT, REPORT)", required = true)
             @RequestParam("relatedType") String relatedType,
@@ -68,7 +70,8 @@ public class FileController {
 
             @CurrentUser UserContext userContext
     ) {
-        log.info("파일 업로드 API 호출: relatedType={}, relatedId={}", relatedType, relatedId);
+        log.info("파일 업로드 API 호출: relatedType={}, relatedId={}, 파일 수={}",
+                relatedType, relatedId, files.size());
 
         // 인증 검증
         if (userContext == null || userContext.getUserId() == null) {
@@ -76,14 +79,14 @@ public class FileController {
                     .body(ApiResponse.error("로그인이 필요합니다."));
         }
 
-        FileUploadResponse response = fileService.uploadFile(
-                file,
+        List<FileUploadResponse> responses = fileService.uploadFiles(
+                files,
                 relatedType,
                 relatedId,
                 userContext.getSchoolId()
         );
 
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("파일 업로드 성공", response));
+                .body(ApiResponse.success("파일 업로드 성공", responses));
     }
 }

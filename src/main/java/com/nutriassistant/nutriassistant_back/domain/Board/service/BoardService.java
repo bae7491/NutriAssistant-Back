@@ -20,9 +20,11 @@ import com.nutriassistant.nutriassistant_back.domain.Board.entity.Board;
 import com.nutriassistant.nutriassistant_back.domain.Board.entity.CategoryType;
 import com.nutriassistant.nutriassistant_back.domain.Board.repository.BoardRepository;
 import com.nutriassistant.nutriassistant_back.domain.NewMenu.service.NewMenuService;
+import com.nutriassistant.nutriassistant_back.global.aws.S3Uploader;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,22 +34,28 @@ import java.util.stream.Collectors;
 @Slf4j
 public class BoardService {
 
+    private static final int MAX_FILE_COUNT = 3;
+    private static final long MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
     private final BoardRepository boardRepository;
     private final AttachmentRepository attachmentRepository;
     private final NewMenuService newMenuService;
     private final DietitianRepository dietitianRepository;
     private final StudentRepository studentRepository;
+    private final S3Uploader s3Uploader;
 
     public BoardService(BoardRepository boardRepository,
                         AttachmentRepository attachmentRepository,
                         NewMenuService newMenuService,
                         DietitianRepository dietitianRepository,
-                        StudentRepository studentRepository) {
+                        StudentRepository studentRepository,
+                        S3Uploader s3Uploader) {
         this.boardRepository = boardRepository;
         this.attachmentRepository = attachmentRepository;
         this.newMenuService = newMenuService;
         this.dietitianRepository = dietitianRepository;
         this.studentRepository = studentRepository;
+        this.s3Uploader = s3Uploader;
     }
 
     @Transactional
@@ -115,6 +123,120 @@ public class BoardService {
         }
 
         // 6. 응답 생성
+        List<BoardCreateResponse.AttachmentResponse> attachmentResponses = savedAttachments.stream()
+                .map(this::toAttachmentResponse)
+                .collect(Collectors.toList());
+
+        return BoardCreateResponse.builder()
+                .id(savedBoard.getId())
+                .schoolId(savedBoard.getSchoolId())
+                .category(savedBoard.getCategory().name())
+                .title(savedBoard.getTitle())
+                .content(savedBoard.getContent())
+                .authorId(savedBoard.getAuthorId())
+                .authorName(savedBoard.getAuthorName())
+                .authorType(savedBoard.getAuthorType().name())
+                .viewCount(savedBoard.getViewCount())
+                .attachments(attachmentResponses)
+                .createdAt(savedBoard.getCreatedAt())
+                .updatedAt(savedBoard.getUpdatedAt())
+                .build();
+    }
+
+    /**
+     * 게시글 등록 + 파일 업로드 (한 번에 처리)
+     */
+    @Transactional
+    public BoardCreateResponse createBoardWithFiles(
+            BoardCreateRequest request,
+            List<MultipartFile> files,
+            Long schoolId,
+            Long authorId,
+            String role
+    ) {
+        log.info("📝 게시글 등록 요청 (파일 포함): category={}, title={}, authorId={}, role={}, 파일 수={}",
+                request.getCategory(), request.getTitle(), authorId, role,
+                files != null ? files.size() : 0);
+
+        // 1. 파일 검증
+        if (files != null && !files.isEmpty()) {
+            if (files.size() > MAX_FILE_COUNT) {
+                throw new IllegalArgumentException(
+                        String.format("파일은 최대 %d개까지 첨부 가능합니다.", MAX_FILE_COUNT));
+            }
+            for (MultipartFile file : files) {
+                if (file.getSize() > MAX_FILE_SIZE) {
+                    throw new IllegalArgumentException("파일 용량이 제한(10MB)을 초과했습니다: " + file.getOriginalFilename());
+                }
+            }
+        }
+
+        // 2. 카테고리 파싱
+        CategoryType category;
+        try {
+            category = CategoryType.valueOf(request.getCategory().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("유효하지 않은 카테고리입니다: " + request.getCategory());
+        }
+
+        // 3. 작성자 타입 결정
+        AuthorType authorType;
+        if ("ROLE_DIETITIAN".equals(role)) {
+            authorType = AuthorType.DIETITIAN;
+        } else if ("ROLE_STUDENT".equals(role)) {
+            authorType = AuthorType.STUDENT;
+        } else {
+            throw new IllegalArgumentException("유효하지 않은 사용자 권한입니다: " + role);
+        }
+
+        // 4. 작성자 이름 조회
+        String authorName = resolveAuthorName(authorId, authorType);
+
+        // 5. 게시글 저장
+        Board board = new Board(
+                schoolId,
+                category,
+                request.getTitle(),
+                request.getContent(),
+                authorId,
+                authorName,
+                authorType
+        );
+        Board savedBoard = boardRepository.save(board);
+        log.info("✅ 게시글 저장 완료: id={}", savedBoard.getId());
+
+        // 6. 파일 업로드 및 첨부파일 저장
+        List<Attachment> savedAttachments = new ArrayList<>();
+        if (files != null && !files.isEmpty()) {
+            String directory = String.format("schools/%d/boards/%d", schoolId, savedBoard.getId());
+
+            for (MultipartFile file : files) {
+                if (file != null && !file.isEmpty()) {
+                    // S3 업로드
+                    String s3Key = s3Uploader.upload(file, directory);
+
+                    // Attachment 저장
+                    Attachment attachment = new Attachment(
+                            RelatedType.BOARD,
+                            savedBoard.getId(),
+                            file.getOriginalFilename(),
+                            s3Key,
+                            file.getContentType(),
+                            file.getSize()
+                    );
+                    savedAttachments.add(attachmentRepository.save(attachment));
+                }
+            }
+            log.info("✅ 파일 업로드 및 첨부파일 저장 완료: {}개", savedAttachments.size());
+        }
+
+        // 7. NEW_MENU 카테고리인 경우 비동기로 분석 요청
+        if (category == CategoryType.NEW_MENU) {
+            newMenuService.requestAnalysisAsync(savedBoard);
+            log.info("🔄 신메뉴 분석 비동기 요청 전송: boardId={}", savedBoard.getId());
+        }
+
+        // 8. 응답 생성
         List<BoardCreateResponse.AttachmentResponse> attachmentResponses = savedAttachments.stream()
                 .map(this::toAttachmentResponse)
                 .collect(Collectors.toList());
@@ -349,6 +471,155 @@ public class BoardService {
                 .build();
     }
 
+    /**
+     * 게시글 수정 + 파일 수정 (한 번에 처리)
+     * - 기존 파일 삭제 (deleteFileIds)
+     * - 새 파일 업로드 (files)
+     * - 게시글 내용 수정 (category, title, content)
+     */
+    @Transactional
+    public BoardCreateResponse updateBoardWithFiles(
+            Long boardId,
+            Long schoolId,
+            Long currentUserId,
+            String category,
+            String title,
+            String content,
+            List<Long> deleteFileIds,
+            List<MultipartFile> files
+    ) {
+        log.info("✏️ 게시글 수정 요청 (파일 포함): boardId={}, schoolId={}, 삭제 파일={}, 추가 파일={}",
+                boardId, schoolId,
+                deleteFileIds != null ? deleteFileIds.size() : 0,
+                files != null ? files.size() : 0);
+
+        // 1. 게시글 조회
+        Board board = boardRepository.findById(boardId)
+                .orElseThrow(() -> new BoardNotFoundException("존재하지 않는 게시글입니다."));
+
+        if (board.getDeleted()) {
+            throw new BoardDeletedException("삭제된 게시글입니다.");
+        }
+
+        // 2. school_id 검증 (본인 학교 게시글만 수정 가능)
+        if (!board.getSchoolId().equals(schoolId)) {
+            throw new BoardNotFoundException("존재하지 않는 게시글입니다.");
+        }
+
+        // 3. 권한 확인 (작성자만 수정 가능)
+        if (!board.getAuthorId().equals(currentUserId)) {
+            throw new BoardForbiddenException("게시글 수정 권한이 없습니다.");
+        }
+
+        // 4. 파일 삭제 처리
+        if (deleteFileIds != null && !deleteFileIds.isEmpty()) {
+            for (Long fileId : deleteFileIds) {
+                attachmentRepository.findById(fileId).ifPresent(attachment -> {
+                    // 해당 파일이 이 게시글의 첨부파일인지 확인
+                    if (attachment.getRelatedType() == RelatedType.BOARD
+                            && attachment.getRelatedId().equals(boardId)) {
+                        // S3에서 파일 삭제
+                        try {
+                            s3Uploader.delete(attachment.getS3Path());
+                            log.info("S3 파일 삭제 완료: {}", attachment.getS3Path());
+                        } catch (Exception e) {
+                            log.warn("S3 파일 삭제 실패 (무시하고 계속 진행): {}", attachment.getS3Path(), e);
+                        }
+                        // DB에서 Attachment 삭제
+                        attachmentRepository.delete(attachment);
+                        log.info("첨부파일 DB 삭제 완료: id={}", fileId);
+                    } else {
+                        log.warn("첨부파일이 해당 게시글에 속하지 않음: fileId={}, boardId={}", fileId, boardId);
+                    }
+                });
+            }
+        }
+
+        // 5. 새 파일 업로드 검증 및 처리
+        List<Attachment> newAttachments = new ArrayList<>();
+        if (files != null && !files.isEmpty()) {
+            // 현재 첨부파일 개수 조회
+            List<Attachment> currentAttachments = attachmentRepository.findByRelatedTypeAndRelatedId(
+                    RelatedType.BOARD, boardId
+            );
+            int currentCount = currentAttachments.size();
+
+            // 파일 개수 검증 (현재 파일 + 새 파일이 MAX_FILE_COUNT 이하인지)
+            if (currentCount + files.size() > MAX_FILE_COUNT) {
+                throw new IllegalArgumentException(
+                        String.format("첨부파일은 최대 %d개까지 가능합니다. 현재: %d개, 추가 요청: %d개",
+                                MAX_FILE_COUNT, currentCount, files.size()));
+            }
+
+            // 파일 크기 검증
+            for (MultipartFile file : files) {
+                if (file.getSize() > MAX_FILE_SIZE) {
+                    throw new IllegalArgumentException("파일 용량이 제한(10MB)을 초과했습니다: " + file.getOriginalFilename());
+                }
+            }
+
+            // 파일 업로드
+            String directory = String.format("schools/%d/boards/%d", schoolId, boardId);
+            for (MultipartFile file : files) {
+                if (file != null && !file.isEmpty()) {
+                    // S3 업로드
+                    String s3Key = s3Uploader.upload(file, directory);
+
+                    // Attachment 저장
+                    Attachment attachment = new Attachment(
+                            RelatedType.BOARD,
+                            boardId,
+                            file.getOriginalFilename(),
+                            s3Key,
+                            file.getContentType(),
+                            file.getSize()
+                    );
+                    newAttachments.add(attachmentRepository.save(attachment));
+                }
+            }
+            log.info("✅ 새 파일 업로드 완료: {}개", newAttachments.size());
+        }
+
+        // 6. 카테고리 파싱 (있는 경우만)
+        CategoryType categoryType = null;
+        if (category != null && !category.isBlank()) {
+            try {
+                categoryType = CategoryType.valueOf(category.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("유효하지 않은 카테고리입니다: " + category);
+            }
+        }
+
+        // 7. 게시글 수정
+        board.update(categoryType, title, content);
+        Board savedBoard = boardRepository.save(board);
+        log.info("✅ 게시글 수정 완료: id={}", savedBoard.getId());
+
+        // 8. 전체 첨부파일 조회 (기존 + 신규)
+        List<Attachment> allAttachments = attachmentRepository.findByRelatedTypeAndRelatedId(
+                RelatedType.BOARD, boardId
+        );
+
+        List<BoardCreateResponse.AttachmentResponse> attachmentResponses = allAttachments.stream()
+                .map(this::toAttachmentResponse)
+                .collect(Collectors.toList());
+
+        return BoardCreateResponse.builder()
+                .id(savedBoard.getId())
+                .schoolId(savedBoard.getSchoolId())
+                .category(savedBoard.getCategory().name())
+                .title(savedBoard.getTitle())
+                .content(savedBoard.getContent())
+                .authorId(savedBoard.getAuthorId())
+                .authorName(savedBoard.getAuthorName())
+                .authorType(savedBoard.getAuthorType().name())
+                .viewCount(savedBoard.getViewCount())
+                .attachments(attachmentResponses)
+                .createdAt(savedBoard.getCreatedAt())
+                .updatedAt(savedBoard.getUpdatedAt())
+                .build();
+    }
+
     @Transactional
     public BoardDeleteResponse deleteBoard(Long boardId, Long schoolId, Long currentUserId) {
         log.info("🗑️ 게시글 삭제 요청: boardId={}, schoolId={}, userId={}", boardId, schoolId, currentUserId);
@@ -372,7 +643,27 @@ public class BoardService {
             throw new BoardForbiddenException("게시글 삭제 권한이 없습니다.");
         }
 
-        // 4. Soft Delete 수행
+        // 5. 첨부파일 삭제 (S3 + DB)
+        List<Attachment> attachments = attachmentRepository.findByRelatedTypeAndRelatedId(
+                RelatedType.BOARD, boardId
+        );
+
+        // S3 파일 먼저 모두 삭제 (하나라도 실패하면 전체 롤백)
+        for (Attachment attachment : attachments) {
+            try {
+                s3Uploader.delete(attachment.getS3Path());
+                log.info("S3 파일 삭제 완료: {}", attachment.getS3Path());
+            } catch (Exception e) {
+                log.error("S3 파일 삭제 실패: {}", attachment.getS3Path(), e);
+                throw new BoardDeleteException("파일 삭제 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+            }
+        }
+
+        // S3 삭제 성공 후 DB에서 Attachment 삭제
+        attachmentRepository.deleteAll(attachments);
+        log.info("✅ 첨부파일 삭제 완료: {}개", attachments.size());
+
+        // 6. Soft Delete 수행
         board.softDelete();
         boardRepository.save(board);
         log.info("✅ 게시글 삭제 완료 (Soft Delete): boardId={}", boardId);
@@ -412,6 +703,12 @@ public class BoardService {
 
     public static class BoardForbiddenException extends RuntimeException {
         public BoardForbiddenException(String message) {
+            super(message);
+        }
+    }
+
+    public static class BoardDeleteException extends RuntimeException {
+        public BoardDeleteException(String message) {
             super(message);
         }
     }

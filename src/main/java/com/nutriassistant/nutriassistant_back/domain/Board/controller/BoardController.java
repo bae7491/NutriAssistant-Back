@@ -19,12 +19,15 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -40,21 +43,85 @@ public class BoardController {
     }
 
     @Operation(
-            summary = "게시글 등록",
-            description = "새 게시글을 등록합니다. NEW_MENU 카테고리인 경우 AI 분석이 자동으로 요청됩니다."
+            summary = "게시글 등록 (파일 포함)",
+            description = "새 게시글을 등록합니다. 파일은 최대 3개까지 첨부 가능합니다. NEW_MENU 카테고리인 경우 AI 분석이 자동으로 요청됩니다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "게시글 등록 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "요청값 오류"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
-    @PostMapping
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> createBoardWithFiles(
+            @CurrentUser UserContext user,
+            @RequestParam("category") String category,
+            @RequestParam("title") String title,
+            @RequestParam("content") String content,
+            @RequestParam(value = "files", required = false) List<MultipartFile> files
+    ) {
+        try {
+            log.info("📝 게시글 등록 API 호출 (파일 포함): category={}, title={}, userId={}, role={}, schoolId={}, 파일 수={}",
+                    category, title, user.getUserId(), user.getRole(), user.getSchoolId(),
+                    files != null ? files.size() : 0);
+
+            // BoardCreateRequest 생성
+            BoardCreateRequest request = new BoardCreateRequest();
+            request.setCategory(category);
+            request.setTitle(title);
+            request.setContent(content);
+
+            BoardCreateResponse response = boardService.createBoardWithFiles(
+                    request,
+                    files,
+                    user.getSchoolId(),
+                    user.getUserId(),
+                    user.getRole()
+            );
+
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+
+        } catch (IllegalArgumentException e) {
+            log.warn("⚠️ 잘못된 요청: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(
+                    ErrorResponse.of(
+                            400,
+                            "BAD_REQUEST",
+                            "BOARD_001",
+                            e.getMessage(),
+                            "/boards"
+                    )
+            );
+
+        } catch (Exception e) {
+            log.error("❌ 게시글 등록 중 오류 발생: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ErrorResponse.of(
+                            500,
+                            "INTERNAL_SERVER_ERROR",
+                            "SYS_001",
+                            "서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+                            "/boards"
+                    )
+            );
+        }
+    }
+
+    @Operation(
+            summary = "게시글 등록 (JSON)",
+            description = "새 게시글을 등록합니다 (파일 없이 JSON으로). NEW_MENU 카테고리인 경우 AI 분석이 자동으로 요청됩니다."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "게시글 등록 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "요청값 오류"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
+    })
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> createBoard(
             @CurrentUser UserContext user,
             @Validated @RequestBody BoardCreateRequest request
     ) {
         try {
-            log.info("📝 게시글 등록 API 호출: category={}, title={}, userId={}, role={}, schoolId={}",
+            log.info("📝 게시글 등록 API 호출 (JSON): category={}, title={}, userId={}, role={}, schoolId={}",
                     request.getCategory(), request.getTitle(), user.getUserId(), user.getRole(), user.getSchoolId());
 
             BoardCreateResponse response = boardService.createBoard(
@@ -222,8 +289,8 @@ public class BoardController {
     }
 
     @Operation(
-            summary = "게시글 수정",
-            description = "게시글을 수정합니다. 작성자 본인만 수정할 수 있습니다."
+            summary = "게시글 수정 (파일 포함)",
+            description = "게시글을 수정합니다. 파일 추가/삭제가 가능합니다. 작성자 본인만 수정할 수 있습니다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "수정 성공"),
@@ -232,7 +299,106 @@ public class BoardController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "410", description = "삭제된 게시글")
     })
-    @PatchMapping("/{boardId}")
+    @PatchMapping(value = "/{boardId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> updateBoardWithFiles(
+            @CurrentUser UserContext user,
+            @Parameter(description = "게시글 ID", required = true, example = "1")
+            @PathVariable Long boardId,
+            @RequestParam(value = "category", required = false) String category,
+            @RequestParam(value = "title", required = false) String title,
+            @RequestParam(value = "content", required = false) String content,
+            @RequestParam(value = "deleteFileIds", required = false) List<Long> deleteFileIds,
+            @RequestParam(value = "files", required = false) List<MultipartFile> files
+    ) {
+        String path = "/boards/" + boardId;
+        try {
+            log.info("✏️ 게시글 수정 API 호출 (파일 포함): boardId={}, schoolId={}, userId={}, 삭제 파일={}, 추가 파일={}",
+                    boardId, user.getSchoolId(), user.getUserId(),
+                    deleteFileIds != null ? deleteFileIds.size() : 0,
+                    files != null ? files.size() : 0);
+
+            BoardCreateResponse response = boardService.updateBoardWithFiles(
+                    boardId, user.getSchoolId(), user.getUserId(),
+                    category, title, content,
+                    deleteFileIds, files
+            );
+
+            return ResponseEntity.ok(response);
+
+        } catch (BoardService.BoardNotFoundException e) {
+            log.warn("⚠️ 게시글 없음: boardId={}", boardId);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                    ErrorResponse.of(
+                            404,
+                            "NOT_FOUND",
+                            "BOARD_404",
+                            e.getMessage(),
+                            path
+                    )
+            );
+
+        } catch (BoardService.BoardDeletedException e) {
+            log.warn("⚠️ 삭제된 게시글: boardId={}", boardId);
+            return ResponseEntity.status(HttpStatus.GONE).body(
+                    ErrorResponse.of(
+                            410,
+                            "GONE",
+                            "BOARD_410",
+                            e.getMessage(),
+                            path
+                    )
+            );
+
+        } catch (BoardService.BoardForbiddenException e) {
+            log.warn("⚠️ 수정 권한 없음: boardId={}", boardId);
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
+                    ErrorResponse.of(
+                            403,
+                            "FORBIDDEN",
+                            "AUTH_101",
+                            e.getMessage(),
+                            path
+                    )
+            );
+
+        } catch (IllegalArgumentException e) {
+            log.warn("⚠️ 잘못된 요청: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(
+                    ErrorResponse.of(
+                            400,
+                            "BAD_REQUEST",
+                            "BOARD_002",
+                            e.getMessage(),
+                            path
+                    )
+            );
+
+        } catch (Exception e) {
+            log.error("❌ 게시글 수정 중 오류 발생: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ErrorResponse.of(
+                            500,
+                            "INTERNAL_SERVER_ERROR",
+                            "SYS_001",
+                            "서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+                            path
+                    )
+            );
+        }
+    }
+
+    @Operation(
+            summary = "게시글 수정 (JSON)",
+            description = "게시글을 수정합니다 (파일 없이 JSON으로). 작성자 본인만 수정할 수 있습니다."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "수정 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "요청값 오류"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "수정 권한 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "410", description = "삭제된 게시글")
+    })
+    @PatchMapping(value = "/{boardId}", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> updateBoard(
             @CurrentUser UserContext user,
             @Parameter(description = "게시글 ID", required = true, example = "1")
@@ -241,7 +407,7 @@ public class BoardController {
     ) {
         String path = "/boards/" + boardId;
         try {
-            log.info("✏️ 게시글 수정 API 호출: boardId={}, schoolId={}, userId={}", boardId, user.getSchoolId(), user.getUserId());
+            log.info("✏️ 게시글 수정 API 호출 (JSON): boardId={}, schoolId={}, userId={}", boardId, user.getSchoolId(), user.getUserId());
 
             BoardCreateResponse response = boardService.updateBoard(boardId, user.getSchoolId(), request, user.getUserId());
 
@@ -353,6 +519,18 @@ public class BoardController {
                             403,
                             "FORBIDDEN",
                             "AUTH_102",
+                            e.getMessage(),
+                            path
+                    )
+            );
+
+        } catch (BoardService.BoardDeleteException e) {
+            log.error("❌ 파일 삭제 실패: boardId={}", boardId);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ErrorResponse.of(
+                            500,
+                            "INTERNAL_SERVER_ERROR",
+                            "FILE_500",
                             e.getMessage(),
                             path
                     )

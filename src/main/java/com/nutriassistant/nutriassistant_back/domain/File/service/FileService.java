@@ -13,11 +13,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Service
 @Slf4j
 public class FileService {
 
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    private static final int MAX_FILE_COUNT = 3; // 최대 파일 개수
 
     private final S3Uploader s3Uploader;
     private final AttachmentRepository attachmentRepository;
@@ -121,6 +125,47 @@ public class FileService {
                 .s3Path(s3Key)
                 .createdAt(saved.getCreatedAt())
                 .build();
+    }
+
+    /**
+     * 다중 파일 업로드 (최대 3개)
+     */
+    @Transactional
+    public List<FileUploadResponse> uploadFiles(
+            List<MultipartFile> files,
+            String relatedType,
+            Long relatedId,
+            Long schoolId
+    ) {
+        log.info("다중 파일 업로드 요청: relatedType={}, relatedId={}, 파일 수={}",
+                relatedType, relatedId, files.size());
+
+        // 0. 파일 목록 검증
+        if (files == null || files.isEmpty()) {
+            throw new FileUploadException("FILE_001", "업로드할 파일(files)은 필수입니다.");
+        }
+
+        // 1. 파일 개수 검증
+        if (files.size() > MAX_FILE_COUNT) {
+            throw new FileUploadException("FILE_003",
+                    String.format("파일은 최대 %d개까지 업로드 가능합니다.", MAX_FILE_COUNT));
+        }
+
+        // 2. 각 파일 업로드
+        List<FileUploadResponse> responses = new ArrayList<>();
+        for (MultipartFile file : files) {
+            if (file != null && !file.isEmpty()) {
+                FileUploadResponse response = uploadFile(file, relatedType, relatedId, schoolId);
+                responses.add(response);
+            }
+        }
+
+        if (responses.isEmpty()) {
+            throw new FileUploadException("FILE_001", "유효한 파일이 없습니다.");
+        }
+
+        log.info("다중 파일 업로드 완료: {}개 파일", responses.size());
+        return responses;
     }
 
     private String buildS3Directory(RelatedType type, Long relatedId, Long schoolId) {
