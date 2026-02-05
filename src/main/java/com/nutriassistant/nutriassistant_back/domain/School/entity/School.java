@@ -22,22 +22,25 @@ public class School {
     private Long id;
 
     // 영양사(Dietitian)와 1:1 관계
-    // (참고: nullable = false면, 영양사 없이는 학교 데이터가 DB에 존재할 수 없음)
+    // (영양사 탈퇴 시 null 허용을 위해 nullable = true)
+    @Setter // ★ 영양사 매칭(registerSchool)을 위해 필요
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "dietitian_id", nullable = true) // ★ 탈퇴 시 null 허용을 위해 true로 변경
+    @JoinColumn(name = "dietitian_id", nullable = true)
     private Dietitian dietitian;
 
     // =======================================================
-    // 1. 기본 정보 (나이스 API 기반)
+    // 1. 기본 정보 (나이스 API 기반 + 수정 가능)
     // =======================================================
 
     @Setter
     @Column(nullable = false)
     private String schoolName;   // 학교명
 
+    @Setter // ★ 정보 업데이트(updateSchoolInfo)를 위해 필요
     @Column(nullable = false, unique = true)
-    private String schoolCode;   // 표준학교코드 (불변 식별자)
+    private String schoolCode;   // 표준학교코드
 
+    @Setter // ★ 정보 업데이트를 위해 필요
     @Column(nullable = false)
     private String regionCode;   // 시도교육청코드
 
@@ -86,19 +89,4 @@ public class School {
 
     @UpdateTimestamp
     private LocalDateTime updatedAt;
-
-    // =======================================================
-    // 4. 편의 메서드 (데이터 수정용)
-    // =======================================================
-
-    // [수정 완료] 영양사 연결
-    public void setDietitian(Dietitian dietitian) {
-        this.dietitian = dietitian;
-    }
-
-    // [수정 완료] 빈 껍데기 해결 -> 실제 값 대입
-    // (Service에서 학교 정보 업데이트 시 사용됨)
-    public void setRegionCode(String regionCode) {
-        this.regionCode = regionCode;
-    }
 }
