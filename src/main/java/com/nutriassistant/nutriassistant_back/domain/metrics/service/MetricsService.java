@@ -28,6 +28,9 @@ import org.springframework.web.client.RestClient;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -279,7 +282,7 @@ public class MetricsService {
         List<SatisfactionDto.BatchInfo> batches = pagedList.stream()
                 .map(a -> SatisfactionDto.BatchInfo.builder()
                         .batch_id("batch-" + a.getId()) // ID를 배치 ID로 활용
-                        .date(LocalDate.parse(a.getTargetYm()))
+                        .date(parseTargetYmToLocalDate(a.getTargetYm()))
                         .generated_at(a.getCreatedAt())
                         .model_version("sent-v1.2.0-lightml") // 고정값 예시
                         .total_reviews((int) (safeLong(Long.valueOf(a.getPositiveCount())) + safeLong(Long.valueOf(a.getNegativeCount()))))
@@ -441,5 +444,26 @@ public class MetricsService {
     // [Helper] Null-safe Long 변환
     private long safeLong(Long val) {
         return val == null ? 0L : val;
+    }
+
+    // [Helper] targetYm을 LocalDate로 변환 (yyyy-MM 또는 yyyy-MM-dd 형식 지원)
+    private LocalDate parseTargetYmToLocalDate(String targetYm) {
+        if (targetYm == null || targetYm.isBlank()) {
+            return LocalDate.now();
+        }
+
+        try {
+            // 먼저 yyyy-MM-dd 형식 시도
+            return LocalDate.parse(targetYm);
+        } catch (DateTimeParseException e1) {
+            try {
+                // yyyy-MM 형식이면 해당 월의 첫째 날로 변환
+                YearMonth ym = YearMonth.parse(targetYm);
+                return ym.atDay(1);
+            } catch (DateTimeParseException e2) {
+                log.warn("날짜 파싱 실패: {}", targetYm);
+                return LocalDate.now();
+            }
+        }
     }
 }
