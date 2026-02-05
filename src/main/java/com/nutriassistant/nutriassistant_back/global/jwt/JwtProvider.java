@@ -1,21 +1,16 @@
 package com.nutriassistant.nutriassistant_back.global.jwt;
 
 import io.jsonwebtoken.*;
+import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
-import java.util.Collections;
 import java.util.Date;
-import java.util.List;
 
 @Slf4j
 @Component
@@ -26,7 +21,7 @@ public class JwtProvider {
 
     public JwtProvider(@Value("${jwt.secret}") String secret,
                        @Value("${jwt.expiration}") long tokenValidityInMilliseconds) {
-        byte[] keyBytes = secret.getBytes();
+        byte[] keyBytes = Decoders.BASE64.decode(secret);
         this.key = Keys.hmacShaKeyFor(keyBytes);
         this.tokenValidityInMilliseconds = tokenValidityInMilliseconds;
     }
@@ -39,10 +34,10 @@ public class JwtProvider {
         Date validity = new Date(now + this.tokenValidityInMilliseconds);
 
         return Jwts.builder()
-                .setSubject(username)                 // 사용자 아이디 (sub)
-                .claim("id", userId)            // 사용자 PK
-                .claim("schoolId", schoolId)    // 학교 ID
-                .claim("role", role)            // 권한 (ROLE_STUDENT 등)
+                .setSubject(username)
+                .claim("id", userId)
+                .claim("schoolId", schoolId)
+                .claim("role", role)
                 .setIssuedAt(new Date())
                 .setExpiration(validity)
                 .signWith(key, SignatureAlgorithm.HS256)
@@ -50,28 +45,19 @@ public class JwtProvider {
     }
 
     // =========================================================================
-    // 2. 인증 정보(Authentication) 조회 (★ 필터에서 사용하므로 필수 추가)
+    // 2. 인증 정보 조회 (SecurityContext 저장용)
     // =========================================================================
     public Authentication getAuthentication(String accessToken) {
-        // 1. 토큰 복호화
         Claims claims = parseClaims(accessToken);
 
-        // 2. 권한 정보 추출 (예: "ROLE_DIETITIAN")
-        // 권한이 없으면 기본적으로 빈 문자열이나 예외처리를 할 수 있지만, 여기선 있다고 가정
+        Long id = claims.get("id", Long.class);
+        String username = claims.getSubject();
+        Long schoolId = claims.get("schoolId", Long.class);
         String role = claims.get("role", String.class);
-        if (role == null) {
-            role = "ROLE_UNKNOWN"; // 안전장치
-        }
 
-        // 3. Spring Security용 권한 리스트 생성
-        List<GrantedAuthority> authorities = Collections.singletonList(new SimpleGrantedAuthority(role));
+        CustomUserDetails userDetails = new CustomUserDetails(id, username, role, schoolId);
 
-        // 4. UserDetails 객체 생성 (Principal)
-        // 비밀번호는 토큰 인증에서 필요 없으므로 빈 문자열("") 전달
-        UserDetails principal = new User(claims.getSubject(), "", authorities);
-
-        // 5. Authentication 객체 반환
-        return new UsernamePasswordAuthenticationToken(principal, accessToken, authorities);
+        return new UsernamePasswordAuthenticationToken(userDetails, "", userDetails.getAuthorities());
     }
 
     // =========================================================================
@@ -81,7 +67,7 @@ public class JwtProvider {
         try {
             Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token);
             return true;
-        } catch (SecurityException | MalformedJwtException e) {
+        } catch (io.jsonwebtoken.security.SecurityException | MalformedJwtException e) {
             log.info("잘못된 JWT 서명입니다.");
         } catch (ExpiredJwtException e) {
             log.info("만료된 JWT 토큰입니다.");
@@ -94,7 +80,7 @@ public class JwtProvider {
     }
 
     // =========================================================================
-    // 4. 정보 추출용 Getter 메서드들
+    // 4. 정보 추출용 Getter (★ 누락되었던 부분 추가!)
     // =========================================================================
 
     // 아이디(username) 추출
@@ -102,22 +88,22 @@ public class JwtProvider {
         return parseClaims(token).getSubject();
     }
 
-    // 사용자 PK(id) 추출
+    // [추가] 사용자 PK(id) 추출
     public Long getUserId(String token) {
         return parseClaims(token).get("id", Long.class);
     }
 
-    // 학교 ID 추출
+    // [추가] 학교 ID 추출
     public Long getSchoolId(String token) {
         return parseClaims(token).get("schoolId", Long.class);
     }
 
-    // 권한(Role) 추출
+    // [추가] 권한(Role) 추출
     public String getRole(String token) {
         return parseClaims(token).get("role", String.class);
     }
 
-    // 내부적으로 Claims를 파싱하는 헬퍼 메서드
+    // 내부 파싱 메서드
     private Claims parseClaims(String token) {
         try {
             return Jwts.parserBuilder()
@@ -126,7 +112,6 @@ public class JwtProvider {
                     .parseClaimsJws(token)
                     .getBody();
         } catch (ExpiredJwtException e) {
-            // 만료된 토큰이어도 클레임(정보)은 확인하고 싶을 때 사용
             return e.getClaims();
         }
     }

@@ -6,7 +6,7 @@ plugins {
 
 group = 'com.nutriassistant'
 version = '0.0.1-SNAPSHOT'
-description = 'Demo project for Spring Boot'
+description = 'NutriAssistant Backend'
 
 java {
     toolchain {
@@ -28,35 +28,30 @@ dependencies {
     // 1. Spring Boot 기본 스타터 (Web, JPA, Validation)
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    // ✅ 유효성 검사 라이브러리 (이게 있으면 @Valid, @NotBlank 사용 가능)
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 
-    // 2. Security & 암호화
-    // (로그인 기능을 만들려면 Security Starter가 있는 것이 좋습니다. BCrypt 등 사용)
+    // 2. Security & JWT
     implementation 'org.springframework.boot:spring-boot-starter-security'
-
-    // ✅ [추가] JWT 토큰 생성을 위한 라이브러리 (JJWT)
     implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
-    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5' // JSON 변환용
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
 
     // 3. DB 관련 (MySQL)
     runtimeOnly 'com.mysql:mysql-connector-j'
 
-    // 4. 유틸리티 (Lombok)
-    // ✅ (추가) Swagger UI - API 문서 자동 생성
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0'
-
-    // ✅ (추가) AWS S3 파일 업로드
-    implementation 'software.amazon.awssdk:s3:2.25.0'
-
-    // ✅ (추가) PDF 생성 라이브러리 (OpenPDF - iText fork, 한글 지원)
-    implementation 'com.github.librepdf:openpdf:2.0.2'
-    implementation 'com.github.librepdf:openpdf-fonts-extra:2.0.2'
-
+    // 4. 유틸리티 (Lombok, AWS, PDF)
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 
-    // 5. API 문서화 (Swagger UI)
+    // AWS S3
+    implementation 'software.amazon.awssdk:s3:2.25.0'
+
+    // PDF 생성 (한글 지원)
+    implementation 'com.github.librepdf:openpdf:2.0.2'
+    implementation 'com.github.librepdf:openpdf-fonts-extra:2.0.2'
+
+    // 5. API 문서화 (Swagger UI) - [중복 제거 및 최신화]
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0'
 
     // 6. 테스트

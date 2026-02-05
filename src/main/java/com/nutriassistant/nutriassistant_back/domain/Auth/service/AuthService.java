@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 
 /**
  * [인증(Authentication) 관련 비즈니스 로직 처리 서비스]
- * 통합 기능: 학생/영양사 회원가입, 로그인, 아이디/비번 찾기, 정보 수정
+ * 통합 기능: 학생/영양사 회원가입, 로그인, 아이디/비번 찾기, 정보 수정, 비번 변경, 회원 탈퇴
  */
 @Service
 public class AuthService {
@@ -267,6 +267,58 @@ public class AuthService {
 
         // 변경
         student.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+    }
+
+    // =========================================================================
+    // 9. [추가] 영양사 비밀번호 변경 (로그인 상태에서 변경)
+    // =========================================================================
+    @Transactional
+    public void changeDietitianPassword(Long dietitianId, PasswordChangeRequest request) {
+        Dietitian dietitian = dietitianRepository.findById(dietitianId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "영양사 정보를 찾을 수 없습니다."));
+
+        // 현재 비밀번호 확인
+        if (!passwordEncoder.matches(request.getCurrentPassword(), dietitian.getPasswordHash())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "현재 비밀번호가 일치하지 않습니다.");
+        }
+
+        // 새 비밀번호가 기존과 같은지 확인
+        if (passwordEncoder.matches(request.getNewPassword(), dietitian.getPasswordHash())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "새로운 비밀번호는 기존 비밀번호와 달라야 합니다.");
+        }
+
+        // 변경
+        dietitian.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+    }
+
+    // =========================================================================
+    // 10. 학생 회원 탈퇴
+    // =========================================================================
+    @Transactional
+    public void withdrawStudent(Long studentId, String inputPw) {
+        Student student = studentRepository.findById(studentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "사용자 정보를 찾을 수 없습니다."));
+
+        if (!passwordEncoder.matches(inputPw, student.getPasswordHash())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "비밀번호가 일치하지 않아 탈퇴할 수 없습니다.");
+        }
+
+        studentRepository.delete(student);
+    }
+
+    // =========================================================================
+    // 11. 영양사 회원 탈퇴
+    // =========================================================================
+    @Transactional
+    public void withdrawDietitian(Long dietitianId, String inputPw) {
+        Dietitian dietitian = dietitianRepository.findById(dietitianId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "사용자 정보를 찾을 수 없습니다."));
+
+        if (!passwordEncoder.matches(inputPw, dietitian.getPasswordHash())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "비밀번호가 일치하지 않아 탈퇴할 수 없습니다.");
+        }
+
+        dietitianRepository.delete(dietitian);
     }
 
     // =========================================================================
