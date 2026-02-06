@@ -107,42 +107,36 @@ public class MealPlanService {
     public MealPlanDetailResponse getTodayMealPlan(Long schoolId, Long studentId) {
         LocalDate today = LocalDate.now();
 
-        // 1. 오늘의 점심 식단 조회 (점심 기준)
+        /* 1. 오늘의 점심 식단 조회 (학교 ID, 날짜, 식사 타입을 기준으로 조회) */
         MealPlanMenu menu = mealPlanMenuRepository.findByMealPlan_SchoolIdAndMenuDateAndMealType(
                 schoolId, today, MealType.LUNCH
         ).orElseThrow(() -> new IllegalArgumentException("오늘의 중식 식단이 존재하지 않습니다."));
 
-        // 2. 부모 식단(MealPlan) 엔티티 가져오기
+        /* 2. 메뉴 엔티티와 연관된 부모 식단(MealPlan) 정보 획득 */
         MealPlan mealPlan = menu.getMealPlan();
 
-        // 3. 이미지가 없는 경우 AI 생성 시도 및 S3 업로드
+        /* 3. 저장된 이미지 URL이 없는 경우 AI를 통해 이미지를 생성하고 S3에 저장함 */
         if (mealPlan.getImageUrl() == null || mealPlan.getImageUrl().isBlank()) {
             try {
-                // 3-1. 오늘 메뉴 이름들 추출
+                /* 3-1. 현재 식단 메뉴에서 음식 이름 리스트만 추출함 */
                 List<String> menuNames = extractMenuNames(menu);
 
                 if (!menuNames.isEmpty()) {
-                    log.info("🖼️ 오늘의 식단 이미지 생성 시작: {}", menuNames);
+                    log.info("오늘의 식단 이미지 생성 시작: {}", menuNames);
 
-                    // 3-2. AI 서비스 호출 (Base64 문자열 반환)
-                    String base64Image = imageGenerationService.generateMealPlanImage(menuNames);
+                    /* * 3-2. AI 이미지 생성 및 S3 업로드 통합 서비스 호출
+                     * ImageGenerationService 내부의 generateAndSaveMealImage 메서드가
+                     * 이미지 생성, Base64 디코딩, S3 업로드를 모두 처리하고 최종 URL을 반환함
+                     */
+                    String s3Url = imageGenerationService.generateAndSaveMealImage(menuNames);
 
-                    // 3-3. Base64 -> byte[] 변환
-                    byte[] imageBytes = Base64.getDecoder().decode(base64Image);
-
-                    // 3-4. S3 업로드 (경로: ai-images/UUID.png)
-                    String s3Key = "ai-images/" + UUID.randomUUID().toString() + ".png";
-
-                    // 기존 S3Uploader의 uploadBytes 메서드 사용
-                    String s3Url = s3Uploader.uploadBytes(imageBytes, s3Key, "image/png");
-
-                    // 3-5. DB에는 S3 URL만 저장
+                    /* 3-3. 생성된 S3 URL을 식단 엔티티에 업데이트하여 DB에 반영함 */
                     mealPlan.updateImageUrl(s3Url);
-                    log.info("✅ 식단 이미지 생성 및 S3 업로드 완료: {}", s3Url);
+                    log.info("식단 이미지 생성 및 S3 업로드 완료: {}", s3Url);
                 }
             } catch (Exception e) {
-                log.error("⚠️ AI 이미지 생성 또는 S3 업로드 실패 (상세 로그): ", e);
-                // 실패해도 에러를 던지지 않고, 이미지가 없는 상태로 식단 정보만 보여줍니다.
+                /* AI 서비스 장애가 발생하더라도 사용자에게는 식단 텍스트 정보라도 보여주기 위해 예외를 로그로만 남김 */
+                log.error("AI 이미지 생성 또는 S3 업로드 실패 (상세 로그): ", e);
             }
         }
 
