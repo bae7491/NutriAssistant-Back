@@ -27,4 +27,7 @@ public interface FoodInfoRepository extends JpaRepository<FoodInfo, Long> {
     Optional<FoodInfo> findByFoodNameIgnoreSpace(@Param("foodName") String foodName);
 
     Optional<FoodInfo> findByFoodCode(String foodCode);
+
+    // 카테고리 필터 조회 (동적 정렬)
+    Page<FoodInfo> findByCategory(String category, Pageable pageable);
 }

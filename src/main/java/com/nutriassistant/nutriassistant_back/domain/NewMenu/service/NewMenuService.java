@@ -12,7 +12,9 @@ import com.nutriassistant.nutriassistant_back.domain.NewMenu.repository.NewFoodI
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -400,11 +402,30 @@ public class NewMenuService {
     }
 
     /**
-     * 신메뉴 목록 조회 (페이지네이션) - 학교별
+     * 신메뉴 목록 조회 (카테고리 필터 + 동적 정렬)
+     *
+     * @param sort  정렬 기준 (id, name, kcal)
+     * @param order 정렬 방향 (asc, desc)
      */
-    public Page<NewFoodInfoResponse> getNewFoodInfoList(Pageable pageable, Long schoolId) {
-        Page<NewFoodInfo> page = newFoodInfoRepository.findBySchoolIdAndDeletedFalseOrderByCreatedAtDesc(schoolId, pageable);
-        return page.map(this::toNewFoodInfoResponse);
+    public Page<NewFoodInfoResponse> getNewFoodInfoList(Long schoolId, String category, String sort, String order, int page, int size) {
+        // 정렬 필드 매핑
+        String sortField = switch (sort != null ? sort.toLowerCase() : "id") {
+            case "name" -> "foodName";
+            case "kcal" -> "kcal";
+            default -> "id";
+        };
+
+        Sort.Direction direction = "asc".equalsIgnoreCase(order) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortField));
+
+        Page<NewFoodInfo> result;
+        if (category != null && !category.isBlank()) {
+            result = newFoodInfoRepository.findBySchoolIdAndCategoryAndDeletedFalse(schoolId, category, pageable);
+        } else {
+            result = newFoodInfoRepository.findBySchoolIdAndDeletedFalse(schoolId, pageable);
+        }
+
+        return result.map(this::toNewFoodInfoResponse);
     }
 
     /**

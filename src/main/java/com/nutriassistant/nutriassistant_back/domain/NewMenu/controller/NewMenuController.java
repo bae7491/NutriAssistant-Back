@@ -107,18 +107,25 @@ public class NewMenuController {
 
     /**
      * 신메뉴 목록 조회 (페이지네이션)
+     *
+     * @param category 카테고리 필터 (예: 밥, 국, 반찬 등)
+     * @param sort     정렬 기준 (id: 번호, name: 메뉴명, kcal: 열량). 기본값: id
+     * @param order    정렬 방향 (asc, desc). 기본값: desc
      */
     @GetMapping("/newfoodinfo")
     public ResponseEntity<ApiResponse<Page<NewFoodInfoResponse>>> getNewFoodInfoList(
             @CurrentUser UserContext user,
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String category,
+            @RequestParam(defaultValue = "id") String sort,
+            @RequestParam(defaultValue = "desc") String order
     ) {
-        log.info("📋 신메뉴 목록 조회: schoolId={}, page={}, size={}", user.getSchoolId(), page, size);
+        log.info("📋 신메뉴 목록 조회: schoolId={}, page={}, size={}, category={}, sort={}, order={}",
+                user.getSchoolId(), page, size, category, sort, order);
 
-        // page는 1부터 시작하므로 0-based로 변환
-        PageRequest pageRequest = PageRequest.of(Math.max(0, page - 1), size);
-        Page<NewFoodInfoResponse> result = newMenuService.getNewFoodInfoList(pageRequest, user.getSchoolId());
+        Page<NewFoodInfoResponse> result = newMenuService.getNewFoodInfoList(
+                user.getSchoolId(), category, sort, order, Math.max(0, page - 1), size);
 
         return ResponseEntity.ok(
                 ApiResponse.success("신메뉴 목록 조회 성공", result)

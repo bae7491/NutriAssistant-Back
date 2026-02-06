@@ -26,7 +26,10 @@ public class MenuController {
     @GetMapping
     public ResponseEntity<ApiResponse<FoodInfoListResponse>> getFoodInfoList(
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "20") int size
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String category,
+            @RequestParam(defaultValue = "id") String sort,
+            @RequestParam(defaultValue = "desc") String order
     ) {
         try {
             if (size > 100) {
@@ -43,9 +46,11 @@ public class MenuController {
                 );
             }
 
-            log.info("🔍 메뉴 목록 조회: page={}, size={}", page, size);
+            log.info("🔍 메뉴 목록 조회: page={}, size={}, category={}, sort={}, order={}",
+                    page, size, category, sort, order);
 
-            FoodInfoListResponse response = menuService.getFoodInfoList(page - 1, size);
+            FoodInfoListResponse response = menuService.getFoodInfoList(
+                    page - 1, size, category, sort, order);
 
             return ResponseEntity.ok(
                     ApiResponse.success("메뉴 목록 조회 성공", response)

@@ -36,8 +36,14 @@ public interface NewFoodInfoRepository extends JpaRepository<NewFoodInfo, Long> 
     // 음식명으로 삭제되지 않은 신메뉴 조회
     Optional<NewFoodInfo> findByFoodNameAndDeletedFalse(String foodName);
 
-    // 학교별 신메뉴 목록 (페이지네이션)
+    // 학교별 신메뉴 목록 (페이지네이션 - 고정 정렬)
     Page<NewFoodInfo> findBySchoolIdAndDeletedFalseOrderByCreatedAtDesc(Long schoolId, Pageable pageable);
+
+    // 학교별 신메뉴 목록 (페이지네이션 - 동적 정렬)
+    Page<NewFoodInfo> findBySchoolIdAndDeletedFalse(Long schoolId, Pageable pageable);
+
+    // 학교별 + 카테고리 필터 신메뉴 목록 (페이지네이션 - 동적 정렬)
+    Page<NewFoodInfo> findBySchoolIdAndCategoryAndDeletedFalse(Long schoolId, String category, Pageable pageable);
 
     Page<NewFoodInfo> findByDeletedFalseOrderByCreatedAtDesc(Pageable pageable);
 }

@@ -26,9 +26,22 @@ public class MenuService {
     }
 
     @Transactional(readOnly = true)
-    public FoodInfoListResponse getFoodInfoList(int page, int size) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by("foodName").ascending());
-        Page<FoodInfo> foodInfoPage = foodInfoRepository.findAll(pageable);
+    public FoodInfoListResponse getFoodInfoList(int page, int size, String category, String sort, String order) {
+        String sortField = switch (sort != null ? sort.toLowerCase() : "id") {
+            case "name" -> "foodName";
+            case "kcal" -> "kcal";
+            default -> "id";
+        };
+
+        Sort.Direction direction = "asc".equalsIgnoreCase(order) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortField));
+
+        Page<FoodInfo> foodInfoPage;
+        if (category != null && !category.isBlank()) {
+            foodInfoPage = foodInfoRepository.findByCategory(category, pageable);
+        } else {
+            foodInfoPage = foodInfoRepository.findAll(pageable);
+        }
 
         List<FoodInfoListResponse.FoodInfoItem> items = foodInfoPage.getContent().stream()
                 .map(this::toFoodInfoItem)
