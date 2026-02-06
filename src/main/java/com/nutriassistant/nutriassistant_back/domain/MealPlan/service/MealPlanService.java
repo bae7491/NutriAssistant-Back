@@ -13,8 +13,9 @@ import com.nutriassistant.nutriassistant_back.domain.NewMenu.repository.NewFoodI
 import com.nutriassistant.nutriassistant_back.domain.ai.service.ImageGenerationService;
 import com.nutriassistant.nutriassistant_back.domain.monthlyopsdoc.entity.MonthlyOpsDoc;
 import com.nutriassistant.nutriassistant_back.domain.monthlyopsdoc.service.MonthlyOpsDocService;
-// [추가] 리뷰 레포지토리 import
 import com.nutriassistant.nutriassistant_back.domain.review.repository.ReviewRepository;
+// [추가] S3 업로더 import
+import com.nutriassistant.nutriassistant_back.global.aws.S3Uploader;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -50,9 +51,10 @@ public class MealPlanService {
     private final NewFoodInfoRepository newFoodInfoRepository;
     private final MonthlyOpsDocService monthlyOpsDocService;
     private final ImageGenerationService imageGenerationService;
-
-    // [추가] 리뷰 확인용 Repository
     private final ReviewRepository reviewRepository;
+
+    // [추가] S3 업로더 주입
+    private final S3Uploader s3Uploader;
 
     // --- 환경 변수 ---
     @Value("${fastapi.base-url:http://localhost:8001}")
@@ -71,7 +73,8 @@ public class MealPlanService {
                            FoodInfoRepository foodInfoRepository,
                            NewFoodInfoRepository newFoodInfoRepository,
                            ImageGenerationService imageGenerationService,
-                           ReviewRepository reviewRepository // [추가]
+                           ReviewRepository reviewRepository,
+                           S3Uploader s3Uploader // [추가] 생성자 주입
     ) {
         this.mealPlanRepository = mealPlanRepository;
         this.mealPlanMenuRepository = mealPlanMenuRepository;
@@ -83,7 +86,8 @@ public class MealPlanService {
         this.foodInfoRepository = foodInfoRepository;
         this.newFoodInfoRepository = newFoodInfoRepository;
         this.imageGenerationService = imageGenerationService;
-        this.reviewRepository = reviewRepository; // [할당]
+        this.reviewRepository = reviewRepository;
+        this.s3Uploader = s3Uploader; // [할당]
     }
 
     @Transactional(readOnly = true)
@@ -97,10 +101,10 @@ public class MealPlanService {
     }
 
     // =========================================================================
-    // [수정] 메인 화면용: 오늘의 식단 조회 (이미지 생성 + 리뷰 여부 확인)
+    // [수정] 메인 화면용: 오늘의 식단 조회 (이미지 생성 -> S3 업로드 -> URL 저장)
     // =========================================================================
     @Transactional
-    public MealPlanDetailResponse getTodayMealPlan(Long schoolId, Long studentId) { // studentId 파라미터 추가
+    public MealPlanDetailResponse getTodayMealPlan(Long schoolId, Long studentId) {
         LocalDate today = LocalDate.now();
 
         // 1. 오늘의 점심 식단 조회 (점심 기준)
@@ -111,7 +115,7 @@ public class MealPlanService {
         // 2. 부모 식단(MealPlan) 엔티티 가져오기
         MealPlan mealPlan = menu.getMealPlan();
 
-        // 3. 이미지가 없는 경우 AI 생성 시도
+        // 3. 이미지가 없는 경우 AI 생성 시도 및 S3 업로드
         if (mealPlan.getImageUrl() == null || mealPlan.getImageUrl().isBlank()) {
             try {
                 // 3-1. 오늘 메뉴 이름들 추출
@@ -123,18 +127,26 @@ public class MealPlanService {
                     // 3-2. AI 서비스 호출 (Base64 문자열 반환)
                     String base64Image = imageGenerationService.generateMealPlanImage(menuNames);
 
-                    // 3-3. 이미지 URL 업데이트 (Data URL 방식)
-                    String dataUrl = "data:image/png;base64," + base64Image;
+                    // 3-3. Base64 -> byte[] 변환
+                    byte[] imageBytes = Base64.getDecoder().decode(base64Image);
 
-                    mealPlan.updateImageUrl(dataUrl);
-                    log.info("✅ 식단 이미지 생성 및 저장 완료");
+                    // 3-4. S3 업로드 (경로: ai-images/UUID.png)
+                    String s3Key = "ai-images/" + UUID.randomUUID().toString() + ".png";
+
+                    // 기존 S3Uploader의 uploadBytes 메서드 사용
+                    String s3Url = s3Uploader.uploadBytes(imageBytes, s3Key, "image/png");
+
+                    // 3-5. DB에는 S3 URL만 저장
+                    mealPlan.updateImageUrl(s3Url);
+                    log.info("✅ 식단 이미지 생성 및 S3 업로드 완료: {}", s3Url);
                 }
             } catch (Exception e) {
-                log.error("⚠️ AI 이미지 생성 실패 (상세 로그): ", e);
+                log.error("⚠️ AI 이미지 생성 또는 S3 업로드 실패 (상세 로그): ", e);
+                // 실패해도 에러를 던지지 않고, 이미지가 없는 상태로 식단 정보만 보여줍니다.
             }
         }
 
-        // 4. [추가] 리뷰 작성 여부 확인
+        // 4. 리뷰 작성 여부 확인
         boolean isReviewed = false;
         if (studentId != null) {
             isReviewed = reviewRepository.existsByStudentIdAndDateAndMealType(
