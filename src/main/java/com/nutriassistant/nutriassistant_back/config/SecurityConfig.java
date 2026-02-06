@@ -49,10 +49,20 @@ public class SecurityConfig {
                                 // ▼▼▼ [수정] 아이디/비번 찾기 경로 확장 (중요!) ▼▼▼
                                 "/api/auth/find-id/**",
                                 "/api/auth/find-pw/**",
-                                "/api/dietitian/find-id",      // 영양사 아이디 찾기 (만약 DietitianController에 있다면)
-                                "/api/dietitian/find-pw",      // 영양사 비번 찾기
-                                "/api/student/find-id",        // 학생 아이디 찾기 (만약 StudentController에 있다면)
-                                "/api/student/find-pw",        // 학생 비번 찾기
+                                "/api/auth/find-id/**",
+                                "/api/auth/find-pw/**",
+                                "/api/auth/find-password/**",  // [추가] 혹시 몰라 추가
+
+                                "/api/dietitian/find-id",
+                                "/api/dietitian/find-pw",
+                                "/api/dietitian/find-password", // [추가] DTO 이름 보니 이게 유력함!
+
+                                "/api/student/find-id",
+                                "/api/student/find-pw",
+                                "/api/student/find-password",   // [추가] 이것도 추가
+
+                                "/api/dietitian/signup",
+                                "/api/student/signup",
 
                                 "/api/dietitian/signup",       // 영양사 회원가입 (이것도 로그인 전이므로 허용해야 함)
                                 "/api/student/signup",         // 학생 회원가입
