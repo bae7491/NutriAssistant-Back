@@ -1,6 +1,5 @@
 package com.nutriassistant.nutriassistant_back.domain.MealPlan.controller;
 
-import com.nutriassistant.nutriassistant_back.domain.Auth.entity.Student;
 import com.nutriassistant.nutriassistant_back.domain.MealPlan.DTO.*;
 import com.nutriassistant.nutriassistant_back.domain.MealPlan.entity.MealPlan;
 import com.nutriassistant.nutriassistant_back.domain.MealPlan.entity.MealPlanMenu;
@@ -31,7 +30,8 @@ import java.util.UUID;
 
 @Slf4j
 @RestController
-@RequestMapping("/mealplan")
+// [수정] Postman 요청 URL(/api/v1/meal-plans)과 일치하도록 경로 변경
+@RequestMapping("/api/v1/meal-plans")
 public class MealPlanController {
 
     private final MealPlanService mealPlanService;
@@ -40,6 +40,41 @@ public class MealPlanController {
     public MealPlanController(MealPlanService mealPlanService, AllergenService allergenService) {
         this.mealPlanService = mealPlanService;
         this.allergenService = allergenService;
+    }
+
+    // =========================================================================
+    // [신규 추가] 오늘의 식단 조회 (메인 화면용)
+    // URL: GET /api/v1/meal-plans/today?schoolId=1
+    // =========================================================================
+    @GetMapping("/today")
+    public ResponseEntity<ApiResponse<MealPlanDetailResponse>> getTodayMealPlan(
+            @RequestParam Long schoolId
+    ) {
+        try {
+            log.info("🔍 오늘의 식단 조회 API 호출: schoolId={}", schoolId);
+
+            // 서비스 호출 (이미지가 없으면 AI 생성 로직이 내부에서 동작함)
+            MealPlanDetailResponse response = mealPlanService.getTodayMealPlan(schoolId);
+
+            return ResponseEntity.ok(
+                    ApiResponse.success("오늘의 식단 조회 성공", response)
+            );
+
+        } catch (IllegalArgumentException e) {
+            log.warn("⚠️ 오늘의 식단 없음: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                    ApiResponse.error(e.getMessage()) // "오늘의 중식 식단이 존재하지 않습니다" 등
+            );
+        } catch (Exception e) {
+            log.error("❌ 오늘의 식단 조회 중 오류 발생: ", e);
+            String errorId = "err-" + UUID.randomUUID().toString().substring(0, 6);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ApiResponse.error(
+                            "서버 내부 오류가 발생했습니다.",
+                            new ApiResponse.ErrorDetails(errorId)
+                    )
+            );
+        }
     }
 
     /**
@@ -103,9 +138,6 @@ public class MealPlanController {
 
     /**
      * 월간 식단표 조회
-     *
-     * 사용 방법:
-     * GET /mealplan/monthly?year=2026&month=6
      */
     @GetMapping("/monthly")
     public ResponseEntity<ApiResponse<MealPlanMonthlyResponse>> getMealPlanMonthly(
@@ -239,12 +271,6 @@ public class MealPlanController {
 
     /**
      * 주간 식단표 조회
-     *
-     * 사용 방법:
-     * 1. GET /mealplan/weekly → 이번 주 (offset=0)
-     * 2. GET /mealplan/weekly?offset=-1 → 지난 주
-     * 3. GET /mealplan/weekly?offset=1 → 다음 주
-     * 4. GET /mealplan/weekly?date=2026-05-15 → 해당 날짜가 포함된 주
      */
     @GetMapping("/weekly")
     public ResponseEntity<ApiResponse<MealPlanWeeklyResponse>> getMealPlanWeekly(
@@ -424,13 +450,6 @@ public class MealPlanController {
 
     /**
      * 식단표 수정 히스토리 조회
-     *
-     * Query Parameters:
-     * - startDate: 조회 시작 날짜 (예: 2026-05-01)
-     * - endDate: 조회 종료 날짜 (예: 2026-05-31)
-     * - actionType: ALL (전체), MANUAL_UPDATE (수동), AI_AUTO_REPLACE (AI 자동)
-     * - page: 페이지 번호 (기본값 0)
-     * - size: 페이지 크기 (기본값 20)
      */
     @GetMapping("/histories")
     public ResponseEntity<ApiResponse<MealPlanHistoryResponse>> getHistories(
@@ -499,22 +518,6 @@ public class MealPlanController {
             }
 
             log.info("🔍 개별 알레르기 표시 조회 API 호출: studentId={}", parsedStudentId);
-
-            // TODO: JWT 인증 검증 (현재 미구현)
-            // 인증 실패 시 401 반환
-            // if (!isAuthenticated(authentication)) {
-            //     return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
-            //             ErrorResponse.of(401, "UNAUTHORIZED", "AUTH_001", "인증 토큰이 유효하지 않습니다.", path)
-            //     );
-            // }
-
-            // TODO: 권한 검증 (현재 미구현)
-            // 권한 없음 시 403 반환
-            // if (!hasPermission(authentication, parsedStudentId)) {
-            //     return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
-            //             ErrorResponse.of(403, "FORBIDDEN", "AUTH_103", "해당 학생의 알레르기 정보를 조회할 권한이 없습니다.", path)
-            //     );
-            // }
 
             return allergenService.findStudentById(parsedStudentId)
                     .<ResponseEntity<?>>map(student -> {

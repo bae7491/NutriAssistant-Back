@@ -1,4 +1,4 @@
-package com.nutriassistant.nutriassistant_back.global;
+package com.nutriassistant.nutriassistant_back.global; // 패키지 경로 주의 (global.api)
 
 import lombok.Getter;
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
@@ -16,6 +16,7 @@ public class ApiResponse<T> {
     private final T data;
     private final ErrorDetails details;
 
+    // 생성자
     private ApiResponse(String status, String message, T data, ErrorDetails details) {
         this.status = status;
         this.message = message;
@@ -23,18 +24,38 @@ public class ApiResponse<T> {
         this.details = details;
     }
 
+    // ==========================================
+    // 성공 응답 (Success)
+    // ==========================================
+
+    // 1. 데이터와 메시지를 모두 보내는 경우
     public static <T> ApiResponse<T> success(String message, T data) {
         return new ApiResponse<>("success", message, data, null);
     }
 
+    // [수정됨] 2. 데이터만 보내는 경우 (Map, List, DTO 등 모두 가능)
+    // 기존의 컴파일 에러가 나던 메서드를 이걸로 대체했습니다.
+    public static <T> ApiResponse<T> success(T data) {
+        return new ApiResponse<>("success", "요청이 성공했습니다.", data, null);
+    }
+
+    // ==========================================
+    // 실패 응답 (Error)
+    // ==========================================
+
+    // 1. 메시지만 보내는 경우
     public static <T> ApiResponse<T> error(String message) {
         return new ApiResponse<>("error", message, null, null);
     }
 
+    // 2. 상세 에러 내용을 포함하는 경우
     public static <T> ApiResponse<T> error(String message, ErrorDetails details) {
         return new ApiResponse<>("error", message, null, details);
     }
 
+    // ==========================================
+    // 에러 상세 클래스 (Inner Class)
+    // ==========================================
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     public static class ErrorDetails {
         private final Map<String, Object> properties = new LinkedHashMap<>();

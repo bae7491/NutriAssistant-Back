@@ -26,35 +26,48 @@ repositories {
 
 dependencies {
     // 1. Spring Boot 기본 스타터 (Web, JPA, Validation)
+    // Web: REST API 및 톰캣 서버
     implementation 'org.springframework.boot:spring-boot-starter-web'
+    // JPA: 데이터베이스 ORM
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    // ✅ 유효성 검사 라이브러리 (이게 있으면 @Valid, @NotBlank 사용 가능)
+    // Validation: 데이터 유효성 검사 (@Valid, @NotBlank 등 사용)
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 
     // 2. Security & JWT
+    // Spring Security 인증 및 인가
     implementation 'org.springframework.boot:spring-boot-starter-security'
+    // JWT 토큰 생성 및 파싱 라이브러리
     implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
 
     // 3. DB 관련 (MySQL)
+    // MySQL 데이터베이스 드라이버
     runtimeOnly 'com.mysql:mysql-connector-j'
 
     // 4. 유틸리티 (Lombok, AWS, PDF)
+    // Lombok: 코드 간소화 (Getter, Setter 등)
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 
-    // AWS S3
+    // AWS S3: 이미지 파일 저장소 연동
     implementation 'software.amazon.awssdk:s3:2.25.0'
 
-    // PDF 생성 (한글 지원)
+    // PDF 생성: 식단표 등을 PDF로 출력 (한글 폰트 지원 포함)
     implementation 'com.github.librepdf:openpdf:2.0.2'
     implementation 'com.github.librepdf:openpdf-fonts-extra:2.0.2'
 
-    // 5. API 문서화 (Swagger UI) - [중복 제거 및 최신화]
+    // 5. API 문서화 (Swagger UI)
+    // API 명세서 자동 생성 및 테스트 UI
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0'
 
-    // 6. 테스트
+    // 6. Google Cloud (Vertex AI)
+    // Google API 인증을 위한 라이브러리 (서비스 계정 키 로드 및 토큰 발급용)
+    // Vertex AI Imagen 모델 호출 시 인증 헤더를 생성하는 데 사용됩니다.
+    implementation 'com.google.auth:google-auth-library-oauth2-http:1.19.0'
+
+    // 7. 테스트
+    // 단위 및 통합 테스트 지원
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testImplementation 'org.springframework.security:spring-security-test'
