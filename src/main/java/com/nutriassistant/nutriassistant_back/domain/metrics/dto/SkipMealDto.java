@@ -10,21 +10,19 @@ public class SkipMealDto {
 
     @Getter
     public static class RegisterRequest {
-        // school_id는 JWT에서 자동 추출
+        // school_id는 JWT에서 자동 추출, total_students는 School 엔티티에서 자동 조회
         private LocalDate date;
         private String meal_type;
         private Integer skipped_count;
-        private Integer total_students;
     }
 
     @Getter
     public static class UpdateRequest {
-        // school_id는 JWT에서 자동 추출
+        // school_id는 JWT에서 자동 추출, total_students는 School 엔티티에서 자동 조회
         private LocalDate date;     // 필수 (언제 데이터인지)
         private String meal_type;   // 필수 (점심인지 저녁인지)
 
         private Integer skipped_count; // 수정할 값
-        private Integer total_students; // 수정할 값
     }
 
     @Getter

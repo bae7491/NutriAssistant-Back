@@ -8,6 +8,8 @@ import com.nutriassistant.nutriassistant_back.domain.metrics.entity.Leftover;
 import com.nutriassistant.nutriassistant_back.domain.metrics.entity.SkipMeal;
 import com.nutriassistant.nutriassistant_back.domain.metrics.repository.LeftoverRepository;
 import com.nutriassistant.nutriassistant_back.domain.metrics.repository.SkipMealRepository;
+import com.nutriassistant.nutriassistant_back.domain.School.entity.School;
+import com.nutriassistant.nutriassistant_back.domain.School.repository.SchoolRepository;
 
 // [리뷰 & 분석 관련 Import]
 import com.nutriassistant.nutriassistant_back.domain.reviewanalysis.entity.ReviewAnalysis;
@@ -45,6 +47,7 @@ public class MetricsService {
 
     private final SkipMealRepository skipMealRepository;
     private final LeftoverRepository leftoverRepository;
+    private final SchoolRepository schoolRepository;
 
     // [추가] 분석된 데이터(통계) 접근용
     private final ReviewAnalysisRepository reviewAnalysisRepository;
@@ -67,12 +70,20 @@ public class MetricsService {
             throw new IllegalArgumentException("해당 날짜에 이미 결식 데이터가 존재합니다.");
         }
 
+        School school = schoolRepository.findById(schoolId)
+                .orElseThrow(() -> new IllegalArgumentException("학교 정보를 찾을 수 없습니다."));
+
+        Integer totalStudents = school.getStudentCount();
+        if (totalStudents == null || totalStudents == 0) {
+            throw new IllegalArgumentException("학교의 급식 학생 수가 등록되지 않았습니다. 학교 설정에서 먼저 등록해주세요.");
+        }
+
         SkipMeal skipMeal = SkipMeal.builder()
                 .schoolId(schoolId)
                 .date(request.getDate())
                 .mealType(request.getMeal_type())
                 .skippedCount(request.getSkipped_count())
-                .totalStudents(request.getTotal_students())
+                .totalStudents(totalStudents)
                 .build();
 
         return mapToSkipMealResponse(skipMealRepository.save(skipMeal));
@@ -81,25 +92,26 @@ public class MetricsService {
     // 결식 데이터 수정
     @Transactional
     public SkipMealDto.Response updateSkipMeal(SkipMealDto.UpdateRequest request, Long schoolId) {
-        // 1. 학교ID + 날짜 + 식사타입으로 기존 데이터를 찾습니다.
         SkipMeal skipMeal = skipMealRepository.findBySchoolIdAndDateAndMealType(
                         schoolId, request.getDate(), request.getMeal_type())
                 .orElseThrow(() -> new IllegalArgumentException("해당 날짜의 데이터를 찾을 수 없습니다. (등록 먼저 해주세요)"));
 
-        // 2. 찾은 데이터를 업데이트합니다. (JPA 변경 감지 활용)
-        // Builder로 새로 만드는 대신, 엔티티에 update 메서드를 만드는 게 더 객체지향적이지만,
-        // 여기서는 기존 방식대로 Setter나 Builder 패턴을 활용해 값을 덮어씁니다.
+        School school = schoolRepository.findById(schoolId)
+                .orElseThrow(() -> new IllegalArgumentException("학교 정보를 찾을 수 없습니다."));
 
-        // *팁: JPA 영속성 컨텍스트 때문에 값을 바꾸기만 해도 트랜잭션 종료 시 자동 저장됩니다.
-        // 하지만 명시적으로 save를 호출해서 DTO 변환을 합니다.
+        Integer totalStudents = school.getStudentCount();
+        if (totalStudents == null || totalStudents == 0) {
+            throw new IllegalArgumentException("학교의 급식 학생 수가 등록되지 않았습니다. 학교 설정에서 먼저 등록해주세요.");
+        }
+
         SkipMeal updated = SkipMeal.builder()
-                .id(skipMeal.getId()) // 기존 PK 유지
+                .id(skipMeal.getId())
                 .schoolId(skipMeal.getSchoolId())
                 .date(skipMeal.getDate())
                 .mealType(skipMeal.getMealType())
                 .createdAt(skipMeal.getCreatedAt())
-                .skippedCount(request.getSkipped_count())   // 변경된 값
-                .totalStudents(request.getTotal_students()) // 변경된 값
+                .skippedCount(request.getSkipped_count())
+                .totalStudents(totalStudents)
                 .build();
 
         return mapToSkipMealResponse(skipMealRepository.save(updated));
