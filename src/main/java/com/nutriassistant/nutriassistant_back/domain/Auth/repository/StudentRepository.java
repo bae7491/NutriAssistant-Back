@@ -9,6 +9,7 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
 
     // ✅ 회원가입 중복 체크용
     boolean existsBySchoolAndUsername(School school, String username);
+    boolean existsByPhone(String phone);
 
     // ✅ 로그인용
     Optional<Student> findByUsername(String username);

@@ -8,6 +8,8 @@ public interface DietitianRepository extends JpaRepository<Dietitian, Long> {
 
     // ✅ 회원가입 중복 체크용
     boolean existsByUsername(String username);
+    boolean existsByEmail(String email);
+    boolean existsByPhone(String phone);
 
     // ✅ 로그인용
     Optional<Dietitian> findByUsername(String username);

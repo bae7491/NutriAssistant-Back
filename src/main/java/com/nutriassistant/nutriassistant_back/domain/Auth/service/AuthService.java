@@ -9,6 +9,8 @@ import com.nutriassistant.nutriassistant_back.domain.Auth.repository.StudentRepo
 import com.nutriassistant.nutriassistant_back.domain.School.dto.SchoolRequest;
 import com.nutriassistant.nutriassistant_back.domain.School.entity.School;
 import com.nutriassistant.nutriassistant_back.domain.School.repository.SchoolRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import com.nutriassistant.nutriassistant_back.global.jwt.JwtProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -25,7 +27,9 @@ import java.util.stream.Collectors;
  * [인증(Authentication) 관련 비즈니스 로직 처리 서비스]
  * 통합 기능: 학생/영양사 회원가입, 로그인, 아이디/비번 찾기, 정보 수정, 비번 변경, 회원 탈퇴
  */
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class AuthService {
 
     private final StudentRepository studentRepository;
@@ -34,20 +38,6 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository; // 리프레시 토큰 삭제용
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
-
-    public AuthService(StudentRepository studentRepository,
-                       DietitianRepository dietitianRepository,
-                       SchoolRepository schoolRepository,
-                       RefreshTokenRepository refreshTokenRepository,
-                       PasswordEncoder passwordEncoder,
-                       JwtProvider jwtProvider) {
-        this.studentRepository = studentRepository;
-        this.dietitianRepository = dietitianRepository;
-        this.schoolRepository = schoolRepository;
-        this.refreshTokenRepository = refreshTokenRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.jwtProvider = jwtProvider;
-    }
 
     // =========================================================================
     // 1. 학생 회원가입
@@ -66,6 +56,11 @@ public class AuthService {
 
         if (studentRepository.existsBySchoolAndUsername(school, username)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "해당 학교에 이미 존재하는 아이디입니다.");
+        }
+        // 2. 전화번호 중복 체크 [추가]
+        String purePhone = request.getPhone().replaceAll("[^0-9]", "");
+        if (studentRepository.existsByPhone(purePhone)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 등록된 전화번호입니다.");
         }
 
         Student student = new Student();
@@ -92,6 +87,16 @@ public class AuthService {
 
         if (dietitianRepository.existsByUsername(username)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 존재하는 영양사 아이디입니다.");
+        }
+        // 2. 이메일 중복 체크 [추가]
+        if (dietitianRepository.existsByEmail(request.getEmail())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다.");
+        }
+
+        // 3. 전화번호 중복 체크 [추가]
+        String purePhone = request.getPhone().replaceAll("[^0-9]", "");
+        if (dietitianRepository.existsByPhone(purePhone)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 등록된 전화번호입니다.");
         }
 
         Dietitian dietitian = new Dietitian();
@@ -300,46 +305,63 @@ public class AuthService {
     }
 
     // =========================================================================
-    // 9. 회원 탈퇴 (학생 / 영양사)
-    // =========================================================================
+// 9. 회원 탈퇴 (학생 / 영양사)
+// =========================================================================
 
-    // [학생]
+    /**
+     * [학생 회원 탈퇴]
+     * 상태 변경(WITHDRAWN) 및 탈퇴 날짜 기록, 리프레시 토큰 삭제를 수행합니다.
+     */
     @Transactional
     public void withdrawStudent(Long studentId, String inputPw) {
+        // 1. 학생 정보 조회
         Student student = studentRepository.findById(studentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "사용자 정보를 찾을 수 없습니다."));
 
+        // 2. 비밀번호 일치 확인
         if (!passwordEncoder.matches(inputPw, student.getPasswordHash())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "비밀번호가 일치하지 않아 탈퇴할 수 없습니다.");
         }
 
-        // 리프레시 토큰 삭제
+        // 3. 리프레시 토큰 삭제 (중복 로그인 방지 및 세션 만료)
+        // 리포지토리 메서드 명칭이 deleteByUsername인지 확인 필요 (보통 deleteByUsername 또는 deleteById)
         refreshTokenRepository.deleteByUsername(student.getUsername());
-        // Soft Delete (상태 변경)
-        student.withdraw(); // 엔티티의 withdraw() 메서드 호출
+
+        // 4. Soft Delete 실행 (상태변경 + withdrawalDate 기록)
+        student.withdraw();
+
+        log.info("✅ 학생 회원 탈퇴 완료: ID={}, Username={}", studentId, student.getUsername());
     }
 
-    // [영양사]
+    /**
+     * [영양사 회원 탈퇴]
+     * 학교 연동 해제, 상태 변경 및 탈퇴 날짜 기록, 리프레시 토큰 삭제를 수행합니다.
+     */
     @Transactional
     public void withdrawDietitian(Long dietitianId, String inputPw) {
+        // 1. 영양사 정보 조회
         Dietitian dietitian = dietitianRepository.findById(dietitianId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "사용자 정보를 찾을 수 없습니다."));
 
+        // 2. 비밀번호 일치 확인
         if (!passwordEncoder.matches(inputPw, dietitian.getPasswordHash())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "비밀번호가 일치하지 않아 탈퇴할 수 없습니다.");
         }
 
-        // 학교 연동 해제 (NULL 허용됨)
+        // 3. 학교 연동 해제
+        // DB의 school 테이블 dietitian_id 컬럼에 NULL이 허용되어 있어야 합니다.
         schoolRepository.findByDietitian_Id(dietitianId).ifPresent(school -> {
             school.setDietitian(null);
-            // JPA Dirty Checking에 의해 자동 저장
+            log.info("🏫 학교 연동 해제 완료: SchoolCode={}", school.getSchoolCode());
         });
 
-        // 리프레시 토큰 삭제
+        // 4. 리프레시 토큰 삭제
         refreshTokenRepository.deleteByUsername(dietitian.getUsername());
 
-        // Soft Delete
-        dietitian.withdraw(); // 엔티티의 withdraw() 메서드 호출
+        // 5. Soft Delete 실행 (상태변경 + withdrawalDate 기록)
+        dietitian.withdraw();
+
+        log.info("✅ 영양사 회원 탈퇴 완료: ID={}, Username={}", dietitianId, dietitian.getUsername());
     }
 
     // =========================================================================
