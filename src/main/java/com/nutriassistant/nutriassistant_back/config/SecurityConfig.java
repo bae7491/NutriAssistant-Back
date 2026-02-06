@@ -53,19 +53,19 @@ public class SecurityConfig {
                                 "/api/auth/find-pw/**",
                                 "/api/auth/find-password/**",  // [추가] 혹시 몰라 추가
 
-                                "/api/dietitian/find-id",
-                                "/api/dietitian/find-pw",
-                                "/api/dietitian/find-password", // [추가] DTO 이름 보니 이게 유력함!
+                                "/api/auth/dietitian/find-id",
+                                "/api/auth/dietitian/find-pw",
+                                "/api/auth/dietitian/find-password", // [추가] DTO 이름 보니 이게 유력함!
 
-                                "/api/student/find-id",
-                                "/api/student/find-pw",
-                                "/api/student/find-password",   // [추가] 이것도 추가
+                                "/api/auth/student/find-id",
+                                "/api/auth/student/find-pw",
+                                "/api/auth/student/find-password",   // [추가] 이것도 추가
 
-                                "/api/dietitian/signup",
-                                "/api/student/signup",
+                                "/api/auth/dietitian/signup",
+                                "/api/auth/student/signup",
 
-                                "/api/dietitian/signup",       // 영양사 회원가입 (이것도 로그인 전이므로 허용해야 함)
-                                "/api/student/signup",         // 학생 회원가입
+                                "/api/auth/dietitian/signup",       // 영양사 회원가입 (이것도 로그인 전이므로 허용해야 함)
+                                "/api/auth/student/signup",         // 학생 회원가입
 
                                 "/api/public/**",              // 공용 API
                                 "/api/schools/search/**",      // 학교 검색
