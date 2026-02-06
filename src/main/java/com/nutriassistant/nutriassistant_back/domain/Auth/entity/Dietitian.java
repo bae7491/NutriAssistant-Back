@@ -1,7 +1,7 @@
 package com.nutriassistant.nutriassistant_back.domain.Auth.entity;
 
 import com.nutriassistant.nutriassistant_back.domain.Auth.util.PhoneNumberUtil;
-import com.nutriassistant.nutriassistant_back.global.enums.UserStatus; // UserStatus Enum 임포트
+import com.nutriassistant.nutriassistant_back.global.enums.UserStatus;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -37,10 +37,14 @@ public class Dietitian {
     @Column(name = "email", nullable = false, length = 100)
     private String email;
 
-    // ▼▼▼ [추가] 회원 상태 관리 필드 ▼▼▼
+    // ▼▼▼ 회원 상태 관리 (ACTIVE / WITHDRAWN) ▼▼▼
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private UserStatus status = UserStatus.ACTIVE;
+
+    // ▼▼▼ [추가] 탈퇴 일시 (로그인 차단 체크용) ▼▼▼
+    @Column(name = "withdrawal_date")
+    private LocalDateTime withdrawalDate;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -52,9 +56,10 @@ public class Dietitian {
 
     public Dietitian() {}
 
-    // ▼▼▼ [추가] 탈퇴 비즈니스 로직 ▼▼▼
+    // ▼▼▼ [수정] 탈퇴 비즈니스 로직 (상태 변경 + 날짜 기록) ▼▼▼
     public void withdraw() {
         this.status = UserStatus.WITHDRAWN;
+        this.withdrawalDate = LocalDateTime.now(); // 현재 시간 기록
     }
 
     // Getters & Setters
@@ -66,6 +71,7 @@ public class Dietitian {
     public String getPasswordHash() { return passwordHash; }
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
 
+    // (참고) AuthService에서 getPw()를 호출한다면 필요
     public String getPw() { return this.passwordHash; }
 
     public String getName() { return name; }
@@ -79,6 +85,16 @@ public class Dietitian {
 
     public UserStatus getStatus() { return status; }
     public void setStatus(UserStatus status) { this.status = status; }
+
+    // ▼▼▼ [수정] 탈퇴 일시 Getter (AuthService에서 사용) ▼▼▼
+    public LocalDateTime getWithdrawalDate() {
+        return this.withdrawalDate;
+    }
+
+    // (필요 시 Setter)
+    public void setWithdrawalDate(LocalDateTime withdrawalDate) {
+        this.withdrawalDate = withdrawalDate;
+    }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

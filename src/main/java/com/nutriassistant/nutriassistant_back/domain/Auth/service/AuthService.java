@@ -147,6 +147,11 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "비밀번호가 일치하지 않습니다.");
         }
 
+        // [중요] 탈퇴한 학생인지 확인 (로그인 차단)
+        if (student.getWithdrawalDate() != null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "탈퇴한 회원입니다. 복구하려면 관리자에게 문의하세요.");
+        }
+
         return jwtProvider.createToken(
                 student.getId(),
                 student.getUsername(),
@@ -165,6 +170,11 @@ public class AuthService {
 
         if (!passwordEncoder.matches(request.getPw(), dietitian.getPasswordHash())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "비밀번호가 일치하지 않습니다.");
+        }
+
+        // [중요] 탈퇴한 영양사인지 확인 (로그인 차단)
+        if (dietitian.getWithdrawalDate() != null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "탈퇴한 회원입니다. 복구하려면 관리자에게 문의하세요.");
         }
 
         School school = schoolRepository.findByDietitian_Id(dietitian.getId()).orElse(null);
@@ -191,7 +201,7 @@ public class AuthService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "일치하는 학생 정보가 없습니다."));
     }
 
-    // [영양사] - DietitianRepository에 findByNameAndEmail 메서드가 필요합니다.
+    // [영양사]
     @Transactional(readOnly = true)
     public String findDietitianId(DietitianFindIdRequest request) {
         return dietitianRepository.findByNameAndEmail(request.getName(), request.getEmail())
@@ -200,7 +210,7 @@ public class AuthService {
     }
 
     // =========================================================================
-    // 6. 비밀번호 찾기 (학생: 임시발급 / 영양사: 이메일전송용 로직)
+    // 6. 비밀번호 찾기 (학생: 임시발급 / 영양사: 임시발급 리턴)
     // =========================================================================
 
     // [학생] 아이디 + 이름 + 전화번호 일치 시 임시 비밀번호 발급
@@ -208,6 +218,7 @@ public class AuthService {
     public String findStudentPassword(StudentFindPasswordRequest request) {
         String purePhone = request.getPhone().replaceAll("[^0-9]", "");
 
+        // 주의: getEmail()로 되어 있지만 DTO에 따라 getUsername()일 수 있음. 확인 필요.
         Student student = studentRepository.findByUsernameAndNameAndPhone(
                         request.getEmail(), request.getName(), purePhone)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "일치하는 학생 계정이 없습니다."));
@@ -216,14 +227,13 @@ public class AuthService {
         String tempPassword = UUID.randomUUID().toString().substring(0, 8);
         student.setPasswordHash(passwordEncoder.encode(tempPassword));
 
-        return tempPassword; // 화면에 보여줌 (또는 SMS 전송 연동)
+        return tempPassword;
     }
 
-    // [영양사] 아이디 + 이름 + 이메일 일치 시 임시 비밀번호 발급 (이메일 전송 가정)
-    // DietitianRepository에 findByUsernameAndNameAndEmail 메서드가 필요합니다.
+    // [영양사] 아이디 + 이름 + 이메일 일치 시 임시 비밀번호 발급
     @Transactional
-    public void findDietitianPassword(DietitianFindPasswordRequest request) {
-        Dietitian dietitian = (Dietitian) dietitianRepository.findByUsernameAndNameAndEmail(
+    public String findDietitianPassword(DietitianFindPasswordRequest request) {
+        Dietitian dietitian = dietitianRepository.findByUsernameAndNameAndEmail(
                         request.getUsername(), request.getName(), request.getEmail())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "일치하는 영양사 계정이 없습니다."));
 
@@ -231,9 +241,8 @@ public class AuthService {
         String tempPassword = UUID.randomUUID().toString().substring(0, 8);
         dietitian.setPasswordHash(passwordEncoder.encode(tempPassword));
 
-        // TODO: 실제로는 여기서 이메일 발송 서비스(EmailService)를 호출하여 tempPassword를 전송해야 합니다.
-        // ex) emailService.sendTemporaryPassword(dietitian.getEmail(), tempPassword);
-        System.out.println("[Email Mock] 영양사(" + dietitian.getEmail() + ") 임시 비번: " + tempPassword);
+        // [수정] 테스트를 위해 임시 비밀번호를 리턴합니다. (나중에 이메일 발송으로 변경 가능)
+        return tempPassword;
     }
 
     // =========================================================================
@@ -307,7 +316,7 @@ public class AuthService {
         // 리프레시 토큰 삭제
         refreshTokenRepository.deleteByUsername(student.getUsername());
         // Soft Delete (상태 변경)
-        student.withdraw();
+        student.withdraw(); // 엔티티의 withdraw() 메서드 호출
     }
 
     // [영양사]
@@ -320,16 +329,17 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "비밀번호가 일치하지 않아 탈퇴할 수 없습니다.");
         }
 
-        // 학교 연동 해제 (선택 사항)
+        // 학교 연동 해제 (NULL 허용됨)
         schoolRepository.findByDietitian_Id(dietitianId).ifPresent(school -> {
             school.setDietitian(null);
-            // schoolRepository.save(school); // Dirty checking
+            // JPA Dirty Checking에 의해 자동 저장
         });
 
         // 리프레시 토큰 삭제
         refreshTokenRepository.deleteByUsername(dietitian.getUsername());
+
         // Soft Delete
-        dietitian.withdraw();
+        dietitian.withdraw(); // 엔티티의 withdraw() 메서드 호출
     }
 
     // =========================================================================

@@ -68,15 +68,24 @@ public class AuthController {
     // =========================================================================
     // 3. 학생 (Student) 회원가입 / 로그인
     // =========================================================================
-    @PostMapping("/signup")
-    public ResponseEntity<SignUpResponse> signup(@Valid @RequestBody SignUpRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(authService.signupStudent(request));
+    @PostMapping("/signup/student")
+    public ResponseEntity<SignUpResponse> signupStudent(@Valid @RequestBody SignUpRequest request) {
+        // AuthService의 signupStudent 메서드를 호출하여 학생 계정을 생성합니다.
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(authService.signupStudent(request));
     }
 
-    @PostMapping("/login")
-    public ResponseEntity<Map<String, String>> login(@RequestBody LoginRequest request) {
+    // =================================================================
+    // 1. 학생 로그인
+    // URL: POST /api/auth/login/student
+    // =================================================================
+    @PostMapping("/login/student")
+    public ResponseEntity<?> loginStudent(@Valid @RequestBody LoginRequest request) {
+        // AuthService의 학생 로그인 메서드 호출
         String token = authService.login(request);
-        return ResponseEntity.ok(Map.of("accessToken", token));
+
+        // 응답 (JSON 형식으로 토큰 반환)
+        return ResponseEntity.ok().body(Map.of("accessToken", token));
     }
 
     // =========================================================================
@@ -87,10 +96,17 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED).body(authService.signupDietitian(request));
     }
 
+    // =================================================================
+    // 2. 영양사 로그인
+    // URL: POST /api/auth/login/dietitian
+    // =================================================================
     @PostMapping("/login/dietitian")
-    public ResponseEntity<Map<String, String>> loginDietitian(@RequestBody LoginRequest request) {
+    public ResponseEntity<?> loginDietitian(@Valid @RequestBody LoginRequest request) {
+        // AuthService의 영양사 로그인 메서드 호출
         String token = authService.loginDietitian(request);
-        return ResponseEntity.ok(Map.of("accessToken", token));
+
+        // 응답
+        return ResponseEntity.ok().body(Map.of("accessToken", token));
     }
 
     // =========================================================================

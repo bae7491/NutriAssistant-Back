@@ -9,7 +9,6 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
-
 @Entity
 @Table(name = "users_student")
 public class Student {
@@ -19,7 +18,7 @@ public class Student {
     @Column(name = "id")
     private Long id;
 
-    // [수정 포인트 1] updatable = false 제거 완료 (전학 시 학교 변경 가능)
+    // updatable = false 제거됨 (전학 시 학교 변경 가능)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "school_id", nullable = false)
     private School school;
@@ -45,10 +44,14 @@ public class Student {
     @Column(name = "allergy_codes", length = 100)
     private String allergyCodes;
 
-    // [수정 포인트 2] 회원 상태 필드 추가 (탈퇴/휴면 관리용)
+    // 회원 상태 필드 (탈퇴/휴면 관리용)
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private UserStatus status = UserStatus.ACTIVE; // 기본값: 활동 중
+    private UserStatus status = UserStatus.ACTIVE;
+
+    // ▼▼▼ [추가] 탈퇴 일시 필드 (로그인 차단 체크용) ▼▼▼
+    @Column(name = "withdrawal_date")
+    private LocalDateTime withdrawalDate;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -64,9 +67,10 @@ public class Student {
     // 비즈니스 로직 메서드
     // =======================================================
 
-    // [추가] 회원 탈퇴 처리 (상태만 변경)
+    // [수정] 회원 탈퇴 처리 (상태 변경 + 날짜 기록)
     public void withdraw() {
         this.status = UserStatus.WITHDRAWN;
+        this.withdrawalDate = LocalDateTime.now(); // 현재 시간 저장
     }
 
     // =======================================================
@@ -98,9 +102,18 @@ public class Student {
     public String getAllergyCodes() { return allergyCodes; }
     public void setAllergyCodes(String allergyCodes) { this.allergyCodes = allergyCodes; }
 
-    // [추가] 상태 Getter/Setter
     public UserStatus getStatus() { return status; }
     public void setStatus(UserStatus status) { this.status = status; }
+
+    // ▼▼▼ [수정] 탈퇴 날짜 Getter (AuthService 사용) ▼▼▼
+    public LocalDateTime getWithdrawalDate() {
+        return this.withdrawalDate;
+    }
+
+    // (필요시 Setter)
+    public void setWithdrawalDate(LocalDateTime withdrawalDate) {
+        this.withdrawalDate = withdrawalDate;
+    }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
@@ -119,8 +132,7 @@ public class Student {
         return (this.school != null) ? this.school.getId() : null;
     }
 
-    // [수정] DTO 호환성을 위한 메서드 구현
-    // 별도의 email 컬럼이 없으므로 로그인 ID인 username을 반환합니다.
+    // DTO 호환성을 위한 메서드 구현
     public String getEmail() {
         return this.username;
     }
