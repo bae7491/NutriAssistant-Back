@@ -130,7 +130,7 @@ public class MealPlanService {
                     log.info("✅ 식단 이미지 생성 및 저장 완료");
                 }
             } catch (Exception e) {
-                log.error("⚠️ AI 이미지 생성 실패 (서비스는 계속 진행): {}", e.getMessage());
+                log.error("⚠️ AI 이미지 생성 실패 (상세 로그): ", e);
             }
         }
 

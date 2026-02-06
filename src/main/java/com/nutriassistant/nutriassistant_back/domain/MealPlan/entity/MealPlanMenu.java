@@ -1,8 +1,7 @@
 package com.nutriassistant.nutriassistant_back.domain.MealPlan.entity;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -11,7 +10,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Getter
+@Setter
 @Entity
+@Builder
+@NoArgsConstructor // [수정] protected 제거 -> public으로 변경 (에러 해결 핵심)
+@AllArgsConstructor
 @Table(
         name = "meal_plan_menu",
         uniqueConstraints = {
@@ -27,83 +30,62 @@ import java.time.LocalDateTime;
 )
 public class MealPlanMenu {
 
-    // ====== getters/setters ======
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id; // 일간 식단표 Id
+    private Long id;
 
-    // ====== setter for relation ======
-    // many daily rows belong to one monthly plan
-    @Setter
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "meal_plan_id", nullable = false)
-    private MealPlan mealPlan; // 식단표 Id
+    private MealPlan mealPlan;
 
-    @Setter
     @Column(name = "menu_date", nullable = false)
-    private LocalDate menuDate; // 메뉴 날짜
+    private LocalDate menuDate;
 
-    @Setter
     @Enumerated(EnumType.STRING)
     @Column(name = "meal_type", nullable = false, length = 16)
-    private MealType mealType; // 중/석식 구분
+    private MealType mealType;
 
-    // display strings (may include allergens like "(1,2,5)")
-    @Setter
     @Column(name = "rice_display", length = 255)
-    private String riceDisplay; // 밥
+    private String riceDisplay;
 
-    @Setter
     @Column(name = "soup_display", length = 255)
-    private String soupDisplay; // 국
+    private String soupDisplay;
 
-    @Setter
     @Column(name = "main1_display", length = 255)
-    private String main1Display; // 주찬1
+    private String main1Display;
 
-    @Setter
     @Column(name = "main2_display", length = 255)
-    private String main2Display; // 주찬2
+    private String main2Display;
 
-    @Setter
     @Column(name = "side_display", length = 255)
-    private String sideDisplay; // 부찬
+    private String sideDisplay;
 
-    @Setter
     @Column(name = "kimchi_display", length = 255)
-    private String kimchiDisplay; // 김치
+    private String kimchiDisplay;
 
-    @Setter
     @Column(name = "dessert_display", length = 255)
-    private String dessertDisplay; // 후식
+    private String dessertDisplay;
 
-    @Setter
     @Column(precision = 10, scale = 2)
-    private BigDecimal kcal; // 에너지 (칼로리)
+    private BigDecimal kcal;
 
-    @Setter
     @Column(precision = 10, scale = 2)
-    private BigDecimal carb; // 탄수화물
+    private BigDecimal carb;
 
-    @Setter
     @Column(precision = 10, scale = 2)
-    private BigDecimal prot; // 단백질
+    private BigDecimal prot;
 
-    @Setter
     @Column(precision = 10, scale = 2)
-    private BigDecimal fat; // 지방
+    private BigDecimal fat;
 
-    @Setter
     @Column
-    private Integer cost; // 단가
+    private Integer cost;
 
-    @Setter
     @Column(name = "ai_comment", length = 255)
-    private String aiComment; // 수정 사유
+    private String aiComment;
 
-    @Setter
     @Column(name = "raw_menus_json", columnDefinition = "TEXT")
-    private String rawMenusJson; // 원본 메뉴 JSON
+    private String rawMenusJson;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -113,11 +95,9 @@ public class MealPlanMenu {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    public MealPlanMenu() {}
-
+    // 기존 서비스 코드와의 호환성을 위한 생성자
     public MealPlanMenu(LocalDate menuDate, MealType mealType) {
         this.menuDate = menuDate;
         this.mealType = mealType;
     }
-
 }
