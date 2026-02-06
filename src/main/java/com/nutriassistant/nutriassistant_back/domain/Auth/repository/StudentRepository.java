@@ -13,9 +13,9 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     // ✅ 로그인용
     Optional<Student> findByUsername(String username);
 
-    // ✅ [추가] 아이디 찾기용 (이름 + 전화번호)
+    // ✅ [아이디 찾기] 이름 + 전화번호로 조회
     Optional<Student> findByNameAndPhone(String name, String phone);
 
-    // ✅ [추가] 비밀번호 찾기용 (아이디 + 이름 + 전화번호)
+    // ✅ [비밀번호 찾기] 아이디(이메일) + 이름 + 전화번호로 조회 (수정됨)
     Optional<Student> findByUsernameAndNameAndPhone(String username, String name, String phone);
 }

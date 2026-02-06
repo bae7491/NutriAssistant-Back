@@ -20,28 +20,53 @@ public class AuthController {
     private final AuthService authService;
 
     // =========================================================================
-    // 1. 공통 기능 (아이디 / 비밀번호 찾기)
+    // 1. 아이디 찾기 (학생 / 영양사 분리)
     // =========================================================================
 
-    // 아이디 찾기
-    @PostMapping("/find-id")
-    public ResponseEntity<Map<String, String>> findId(@RequestBody FindIdRequest request) {
-        String username = authService.findUsername(request);
+    // 학생 아이디 찾기 (이름 + 전화번호)
+    @PostMapping("/student/find-id")
+    public ResponseEntity<Map<String, String>> findStudentId(@RequestBody @Valid StudentFindIdRequest request) {
+        String username = authService.findStudentId(request);
         return ResponseEntity.ok(Map.of("username", username));
     }
 
-    // 비밀번호 찾기 (임시 비밀번호 발급)
-    @PostMapping("/find-pw")
-    public ResponseEntity<Map<String, String>> findPw(@RequestBody FindPasswordRequest request) {
-        String tempPassword = authService.resetPassword(request);
+    // 영양사 아이디 찾기 (이름 + 이메일)
+    @PostMapping("/dietitian/find-id")
+    public ResponseEntity<Map<String, String>> findDietitianId(@RequestBody @Valid DietitianFindIdRequest request) {
+        // 보안상 이메일로 전송하는 것이 좋지만, 기존 로직 유지를 위해 반환하거나
+        // 서비스에서 이메일 전송 후 "이메일로 전송됨" 메시지를 리턴할 수 있습니다.
+        // 여기서는 ID를 직접 반환하는 형태로 작성했습니다. (필요 시 수정 가능)
+        String username = authService.findDietitianId(request);
+        return ResponseEntity.ok(Map.of("username", username));
+    }
+
+    // =========================================================================
+    // 2. 비밀번호 찾기 (학생 / 영양사 분리)
+    // =========================================================================
+
+    // 학생 비밀번호 찾기 (아이디 + 이름 + 전화번호 -> 임시 비번 발급)
+    @PostMapping("/student/find-pw")
+    public ResponseEntity<Map<String, String>> findStudentPw(@RequestBody @Valid StudentFindPasswordRequest request) {
+        String tempPassword = authService.findStudentPassword(request);
         return ResponseEntity.ok(Map.of(
                 "message", "임시 비밀번호가 발급되었습니다.",
                 "temporaryPassword", tempPassword
         ));
     }
 
+    // 영양사 비밀번호 찾기 (아이디 + 이름 + 이메일 -> 이메일 발송 or 임시 비번)
+    @PostMapping("/dietitian/find-pw")
+    public ResponseEntity<Map<String, String>> findDietitianPw(@RequestBody @Valid DietitianFindPasswordRequest request) {
+        // 영양사는 이메일로 임시 비밀번호를 전송하는 로직이 서비스에 구현되어 있다고 가정합니다.
+        // 만약 바로 보여주는 방식이라면 Student와 동일하게 tempPassword를 반환하면 됩니다.
+        authService.findDietitianPassword(request);
+        return ResponseEntity.ok(Map.of(
+                "message", "입력하신 이메일로 임시 비밀번호가 전송되었습니다."
+        ));
+    }
+
     // =========================================================================
-    // 2. 학생 (Student)
+    // 3. 학생 (Student) 회원가입 / 로그인
     // =========================================================================
     @PostMapping("/signup")
     public ResponseEntity<SignUpResponse> signup(@Valid @RequestBody SignUpRequest request) {
@@ -55,7 +80,7 @@ public class AuthController {
     }
 
     // =========================================================================
-    // 3. 영양사 (Dietitian)
+    // 4. 영양사 (Dietitian) 회원가입 / 로그인
     // =========================================================================
     @PostMapping("/signup/dietitian")
     public ResponseEntity<DietitianSignUpResponse> signupDietitian(@Valid @RequestBody DietitianSignUpRequest request) {
@@ -69,7 +94,7 @@ public class AuthController {
     }
 
     // =========================================================================
-    // 4. 비밀번호 변경 (로그인 후)
+    // 5. 비밀번호 변경 (로그인 후)
     // =========================================================================
 
     // 학생 비밀번호 변경
@@ -82,7 +107,7 @@ public class AuthController {
         return ResponseEntity.ok("비밀번호가 성공적으로 변경되었습니다.");
     }
 
-    // [추가] 영양사 비밀번호 변경
+    // 영양사 비밀번호 변경
     @PutMapping("/password/change/dietitian")
     public ResponseEntity<String> changeDietitianPassword(
             @AuthenticationPrincipal CustomUserDetails user,
@@ -93,7 +118,7 @@ public class AuthController {
     }
 
     // =========================================================================
-    // 5. 회원 탈퇴 (비밀번호 확인 필수)
+    // 6. 회원 탈퇴 (비밀번호 확인 필수)
     // =========================================================================
 
     // 학생 탈퇴
@@ -117,7 +142,7 @@ public class AuthController {
     }
 
     // =========================================================================
-    // 6. 로그아웃
+    // 7. 로그아웃
     // =========================================================================
     @PostMapping("/logout")
     public ResponseEntity<String> logout() {

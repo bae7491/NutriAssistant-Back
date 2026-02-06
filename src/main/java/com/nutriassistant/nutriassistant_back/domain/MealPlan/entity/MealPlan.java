@@ -40,6 +40,10 @@ public class MealPlan {
     @Column(nullable = false)
     private Integer month;
 
+    // [추가] AI가 생성한 식단 이미지 URL 저장 (길이 넉넉하게 설정)
+    @Column(name = "image_url", length = 2000)
+    private String imageUrl;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -47,8 +51,6 @@ public class MealPlan {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
-
-    // [삭제 완료] generated_at 필드는 제거했습니다.
 
     @OneToMany(
             mappedBy = "mealPlan",
@@ -71,5 +73,10 @@ public class MealPlan {
     public void removeMenu(MealPlanMenu menu) {
         menus.remove(menu);
         menu.setMealPlan(null);
+    }
+
+    // [추가] 이미지 업데이트 편의 메서드
+    public void updateImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 }

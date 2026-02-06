@@ -10,10 +10,10 @@ import com.nutriassistant.nutriassistant_back.domain.MealPlan.repository.MealPla
 import com.nutriassistant.nutriassistant_back.domain.MealPlan.repository.MenuHistoryRepository;
 import com.nutriassistant.nutriassistant_back.domain.NewMenu.entity.NewFoodInfo;
 import com.nutriassistant.nutriassistant_back.domain.NewMenu.repository.NewFoodInfoRepository;
-
-// [수정 1] Report 관련 import 제거 -> MonthlyOpsDoc(운영일지) 관련 import 추가
 import com.nutriassistant.nutriassistant_back.domain.monthlyopsdoc.entity.MonthlyOpsDoc;
 import com.nutriassistant.nutriassistant_back.domain.monthlyopsdoc.service.MonthlyOpsDocService;
+// [추가] AI 이미지 생성 서비스 import
+import com.nutriassistant.nutriassistant_back.domain.ai.service.ImageGenerationService;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -43,16 +43,14 @@ public class MealPlanService {
     private final MenuHistoryRepository menuHistoryRepository;
     private final MealPlanMenuService mealPlanMenuService;
 
-    // [변경] RestTemplate 대신 최신 RestClient 사용
     private final RestClient restClient;
-
     private final ObjectMapper objectMapper;
     private final FoodInfoRepository foodInfoRepository;
     private final NewFoodInfoRepository newFoodInfoRepository;
-
-    // [수정 2] ReportService 제거하고 MonthlyOpsDocService 주입
-    // private final ReportService reportService; (삭제됨)
     private final MonthlyOpsDocService monthlyOpsDocService;
+
+    // [추가] AI 이미지 생성 서비스
+    private final ImageGenerationService imageGenerationService;
 
     // --- 환경 변수 ---
     @Value("${fastapi.base-url:http://localhost:8001}")
@@ -61,26 +59,27 @@ public class MealPlanService {
     @Value("${fastapi.internal-token:}")
     private String internalToken;
 
-    // [수정 3] 생성자 주입 변경 (ReportService -> MonthlyOpsDocService)
     public MealPlanService(MealPlanRepository mealPlanRepository,
                            MealPlanMenuRepository mealPlanMenuRepository,
                            MenuHistoryRepository menuHistoryRepository,
                            MealPlanMenuService mealPlanMenuService,
-                           MonthlyOpsDocService monthlyOpsDocService, // <-- 변경됨
+                           MonthlyOpsDocService monthlyOpsDocService,
                            RestClient restClient,
                            ObjectMapper objectMapper,
                            FoodInfoRepository foodInfoRepository,
-                           NewFoodInfoRepository newFoodInfoRepository
+                           NewFoodInfoRepository newFoodInfoRepository,
+                           ImageGenerationService imageGenerationService // [추가]
     ) {
         this.mealPlanRepository = mealPlanRepository;
         this.mealPlanMenuRepository = mealPlanMenuRepository;
         this.menuHistoryRepository = menuHistoryRepository;
         this.mealPlanMenuService = mealPlanMenuService;
-        this.monthlyOpsDocService = monthlyOpsDocService; // <-- 할당
+        this.monthlyOpsDocService = monthlyOpsDocService;
         this.restClient = restClient;
         this.objectMapper = objectMapper;
         this.foodInfoRepository = foodInfoRepository;
         this.newFoodInfoRepository = newFoodInfoRepository;
+        this.imageGenerationService = imageGenerationService; // [할당]
     }
 
     @Transactional(readOnly = true)
@@ -91,6 +90,73 @@ public class MealPlanService {
     @Transactional(readOnly = true)
     public Optional<MealPlan> findBySchoolIdAndYearAndMonth(Long schoolId, Integer year, Integer month) {
         return mealPlanRepository.findBySchoolIdAndYearAndMonth(schoolId, year, month);
+    }
+
+    // =========================================================================
+    // [신규] 메인 화면용: 오늘의 식단 조회 (이미지 자동 생성 포함)
+    // =========================================================================
+    @Transactional
+    public MealPlanDetailResponse getTodayMealPlan(Long schoolId) {
+        LocalDate today = LocalDate.now();
+
+        // 1. 오늘의 점심 식단 조회 (점심 기준)
+        MealPlanMenu menu = mealPlanMenuRepository.findByMealPlan_SchoolIdAndMenuDateAndMealType(
+                schoolId, today, MealType.LUNCH
+        ).orElseThrow(() -> new IllegalArgumentException("오늘의 중식 식단이 존재하지 않습니다."));
+
+        // 2. 부모 식단(MealPlan) 엔티티 가져오기
+        MealPlan mealPlan = menu.getMealPlan();
+
+        // 3. 이미지가 없는 경우 AI 생성 시도
+        if (mealPlan.getImageUrl() == null || mealPlan.getImageUrl().isBlank()) {
+            try {
+                // 3-1. 오늘 메뉴 이름들 추출
+                List<String> menuNames = extractMenuNames(menu);
+
+                if (!menuNames.isEmpty()) {
+                    log.info("🖼️ 오늘의 식단 이미지 생성 시작: {}", menuNames);
+
+                    // 3-2. AI 서비스 호출 (Base64 문자열 반환)
+                    String base64Image = imageGenerationService.generateMealPlanImage(menuNames);
+
+                    // 3-3. 이미지 URL 업데이트 (Data URL 방식)
+                    String dataUrl = "data:image/png;base64," + base64Image;
+
+                    mealPlan.updateImageUrl(dataUrl);
+                    log.info("✅ 식단 이미지 생성 및 저장 완료");
+                }
+            } catch (Exception e) {
+                log.error("⚠️ AI 이미지 생성 실패 (서비스는 계속 진행): {}", e.getMessage());
+            }
+        }
+
+        // 4. 응답 DTO 변환
+        MealPlanDetailResponse response = toDetailResponse(menu);
+
+        // 만약 DTO에 imageUrl 필드가 있다면 아래와 같이 추가 세팅 가능
+        // response.setImageUrl(mealPlan.getImageUrl());
+
+        return response;
+    }
+
+    // [헬퍼] 메뉴 객체에서 음식 이름만 리스트로 추출
+    private List<String> extractMenuNames(MealPlanMenu menu) {
+        List<String> names = new ArrayList<>();
+        addIfPresent(names, menu.getRiceDisplay());
+        addIfPresent(names, menu.getSoupDisplay());
+        addIfPresent(names, menu.getMain1Display());
+        addIfPresent(names, menu.getMain2Display());
+        addIfPresent(names, menu.getSideDisplay());
+        addIfPresent(names, menu.getKimchiDisplay());
+        addIfPresent(names, menu.getDessertDisplay());
+        return names;
+    }
+
+    private void addIfPresent(List<String> list, String display) {
+        if (display != null && !display.isBlank()) {
+            String pureName = display.replaceAll("\\s*\\([^)]*\\)", "").trim();
+            list.add(pureName);
+        }
     }
 
     // =========================================================================
@@ -107,12 +173,8 @@ public class MealPlanService {
         Integer year = Integer.parseInt(req.getYear());
         Integer month = Integer.parseInt(req.getMonth());
 
-        // ========================================
-        // [수정 4] DB에서 이전 달 운영 일지(MonthlyOpsDoc) 조회
-        // ========================================
+        // 운영 일지 조회
         JsonNode reportData = null;
-
-        // 이전 달 계산
         int reportYear = year;
         int reportMonth = month - 1;
         if (reportMonth == 0) {
@@ -122,28 +184,23 @@ public class MealPlanService {
 
         log.info("📊 운영 일지(MonthlyOpsDoc) 조회 시도: {}년 {}월", reportYear, reportMonth);
 
-        // [핵심 변경] reportService -> monthlyOpsDocService 호출
         Optional<MonthlyOpsDoc> docOpt = monthlyOpsDocService.findByYearAndMonth(
                 reportYear, reportMonth
         );
 
         if (docOpt.isPresent()) {
-            // 운영 일지 JSON 데이터 추출
             reportData = monthlyOpsDocService.getReportDataAsJson(docOpt.get());
-            log.info("✅ 운영 일지 발견 → FastAPI로 전달 (가중치 분석 예정)");
+            log.info("✅ 운영 일지 발견 → FastAPI로 전달");
         } else {
             log.info("ℹ️ 운영 일지 없음 → 기본 가중치로 식단 생성");
         }
 
-        // ========================================
-        // 2. FastAPI 요청 Body 구성
-        // ========================================
+        // FastAPI 요청 Body 구성
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("year", year);
         requestBody.put("month", month);
         requestBody.put("school_id", schoolId);
 
-        // Options 추가
         if (req.getOptions() != null) {
             Map<String, Object> options = new HashMap<>();
             options.put("numGenerations", req.getOptions().getNumGenerations());
@@ -163,14 +220,11 @@ public class MealPlanService {
             requestBody.put("options", options);
         }
 
-        // [중요] FastAPI는 여전히 "report"라는 키로 데이터를 받기를 원하므로 키 이름은 유지
         if (reportData != null) {
             requestBody.put("report", objectMapper.convertValue(reportData, Map.class));
         }
 
-        // ========================================
-        // 2-1. 신메뉴 DB 조회 및 추가 (해당 학교의 신메뉴만)
-        // ========================================
+        // 신메뉴 추가
         List<NewFoodInfo> newFoodInfoList = newFoodInfoRepository.findBySchoolIdAndDeletedFalse(schoolId);
         if (!newFoodInfoList.isEmpty()) {
             List<Map<String, Object>> newMenus = newFoodInfoList.stream()
@@ -180,9 +234,7 @@ public class MealPlanService {
             log.info("📋 신메뉴 {}개 추가", newMenus.size());
         }
 
-        // ========================================
-        // 3. FastAPI 호출 (RestClient 사용)
-        // ========================================
+        // FastAPI 호출
         log.info("🚀 FastAPI 호출: /month/generate");
 
         JsonNode fastPayload;
@@ -200,9 +252,7 @@ public class MealPlanService {
 
         log.info("✅ FastAPI 응답 수신");
 
-        // ========================================
-        // 4. DB 저장
-        // ========================================
+        // DB 저장
         MealPlanCreateRequest saveReq = new MealPlanCreateRequest(
                 schoolId,
                 year,

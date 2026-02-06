@@ -12,9 +12,17 @@ public interface DietitianRepository extends JpaRepository<Dietitian, Long> {
     // ✅ 로그인용
     Optional<Dietitian> findByUsername(String username);
 
-    // ✅ [추가] 아이디 찾기용 (이름 + 전화번호)
-    Optional<Dietitian> findByNameAndPhone(String name, String phone);
+    // -----------------------------------------------------------------
+    // ⬇️ 아래 메서드들이 AuthService의 영양사 찾기 로직과 매칭됩니다.
+    // -----------------------------------------------------------------
 
-    // ✅ [추가] 비밀번호 찾기용 (아이디 + 이름 + 전화번호)
-    Optional<Dietitian> findByUsernameAndNameAndPhone(String username, String name, String phone);
+    // ✅ [아이디 찾기] 이름 + 이메일로 조회
+    Optional<Dietitian> findByNameAndEmail(String name, String email);
+
+    // ✅ [비밀번호 찾기] 아이디 + 이름 + 이메일로 조회
+    Optional<Dietitian> findByUsernameAndNameAndEmail(String username, String name, String email);
+
+    // (참고) 만약 전화번호로 찾는 기존 로직을 유지한다면 아래도 남겨두세요.
+    // Optional<Dietitian> findByNameAndPhone(String name, String phone);
+    // Optional<Dietitian> findByUsernameAndNameAndPhone(String username, String name, String phone);
 }
