@@ -19,26 +19,27 @@ public class ReviewService {
     @Transactional
     public ReviewDto.Response registerReview(ReviewDto.RegisterRequest request, Long schoolId, Long studentId) {
 
-        // =================================================================
-        // [신규 추가] 중복 리뷰 체크 로직
-        // =================================================================
+        // 1. [변환] String -> Enum 변환을 딱 한 번만 수행
+        // (잘못된 값이 들어오면 여기서 바로 IllegalArgumentException이 발생하여 처리가 깔끔해집니다)
+        MealType mealType = MealType.valueOf(request.getMeal_type());
+
+        // 2. [검증] 변환된 Enum 변수(mealType) 사용
         boolean alreadyReviewed = reviewRepository.existsByStudentIdAndDateAndMealType(
                 studentId,
                 request.getDate(),
-                MealType.valueOf(request.getMeal_type())
+                mealType
         );
 
         if (alreadyReviewed) {
-            // 이미 존재하면 에러 발생 (프론트엔드에서 409 Conflict 또는 400 Bad Request로 처리)
             throw new IllegalArgumentException("이미 해당 식단에 대한 평가를 완료했습니다.");
         }
 
-        // 중복이 아니면 리뷰 생성 및 저장 진행
+        // 3. [저장] 여기서도 변환된 Enum 변수(mealType) 재사용
         Review review = Review.builder()
                 .studentId(studentId)
                 .schoolId(schoolId)
                 .date(request.getDate())
-                .mealType(MealType.valueOf(request.getMeal_type()))
+                .mealType(mealType)
                 .rating(request.getRating())
                 .content(request.getContent())
                 .build();
@@ -55,7 +56,7 @@ public class ReviewService {
                 .student_id(entity.getStudentId())
                 .school_id(entity.getSchoolId())
                 .date(entity.getDate())
-                .meal_type(String.valueOf(entity.getMealType()))
+                .meal_type(entity.getMealType().name()) // Enum -> String 변환
                 .rating(entity.getRating())
                 .content(entity.getContent())
                 .created_at(entity.getCreatedAt())
