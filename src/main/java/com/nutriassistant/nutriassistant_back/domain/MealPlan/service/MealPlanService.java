@@ -675,9 +675,26 @@ public class MealPlanService {
         }
 
         String foodCode = null;
+        String recipe = null;
+        String ingredients = null;
+
         Optional<FoodInfo> foodOpt = foodInfoRepository.findByFoodNameIgnoreSpace(name);
         if (foodOpt.isPresent()) {
-            foodCode = foodOpt.get().getFoodCode();
+            FoodInfo food = foodOpt.get();
+            foodCode = food.getFoodCode();
+            recipe = food.getRecipe();
+            ingredients = food.getIngredients();
+        }
+
+        // FoodInfo에 없으면 NewFoodInfo에서 조회
+        if (foodCode == null) {
+            Optional<NewFoodInfo> newFoodOpt = newFoodInfoRepository.findByFoodNameAndDeletedFalse(name);
+            if (newFoodOpt.isPresent()) {
+                NewFoodInfo newFood = newFoodOpt.get();
+                foodCode = newFood.getFoodCode();
+                recipe = newFood.getRecipe();
+                ingredients = newFood.getIngredients();
+            }
         }
 
         return MealPlanDetailResponse.MenuItem.builder()
@@ -685,6 +702,8 @@ public class MealPlanService {
                 .name(name)
                 .display(display)
                 .allergens(allergens)
+                .recipe(recipe)
+                .ingredients(ingredients)
                 .build();
     }
 

@@ -103,6 +103,8 @@ public class MealPlanDetailResponse {
         private String name;
         private String display;
         private List<Integer> allergens;
+        private String recipe;
+        private String ingredients;
     }
 
     @Getter
