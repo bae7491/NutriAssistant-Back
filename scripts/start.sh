@@ -2,7 +2,7 @@
 export SPRING_PROFILES_ACTIVE=prod
 
 set -a
-source /home/ec2-user/scripts/.env
+source /home/ec2-user/app/.env
 set +a
 
 cd /home/ec2-user/app
