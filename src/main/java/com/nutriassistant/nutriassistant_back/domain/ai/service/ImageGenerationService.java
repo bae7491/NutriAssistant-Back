@@ -6,6 +6,7 @@ import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.GoogleCredentials;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ClassPathResource; // [추가] 리소스 파일 읽기용
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -51,9 +52,16 @@ public class ImageGenerationService {
      * @return Base64 Encoded Image String
      */
     public String generateImage(String prompt) throws IOException {
-        // 1. 인증 토큰 발급
-        GoogleCredentials credentials = GoogleCredentials.getApplicationDefault()
+        // =================================================================================
+        // 1. [수정됨] 인증 토큰 발급 (resources 폴더의 특정 JSON 파일 강제 로드)
+        // =================================================================================
+
+        // resources 폴더 안의 파일명과 정확히 일치해야 합니다.
+        ClassPathResource resource = new ClassPathResource("food-r-419209-0c382bb35fd3.json");
+
+        GoogleCredentials credentials = GoogleCredentials.fromStream(resource.getInputStream())
                 .createScoped(Collections.singletonList("https://www.googleapis.com/auth/cloud-platform"));
+
         credentials.refreshIfExpired();
         AccessToken token = credentials.getAccessToken();
 
