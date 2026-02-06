@@ -30,7 +30,7 @@ import java.util.UUID;
 
 @Slf4j
 @RestController
-@RequestMapping("/mealplan") // [복구 완료] 기존 경로로 변경
+@RequestMapping("/mealplan")
 public class MealPlanController {
 
     private final MealPlanService mealPlanService;
@@ -42,15 +42,17 @@ public class MealPlanController {
     }
 
     // =========================================================================
-    // [신규 추가] 오늘의 식단 조회 (메인 화면용)
-    // URL: GET /mealplan/today?schoolId=1
+    // [수정됨] 오늘의 식단 조회 (토큰 인증 필수)
+    // URL: GET /mealplan/today (파라미터 없음)
+    // Header: Authorization: Bearer {Access_Token}
     // =========================================================================
     @GetMapping("/today")
     public ResponseEntity<ApiResponse<MealPlanDetailResponse>> getTodayMealPlan(
-            @RequestParam Long schoolId
+            @CurrentUser UserContext user // <-- [핵심 변경] 토큰에서 사용자 정보 추출
     ) {
         try {
-            log.info("🔍 오늘의 식단 조회 API 호출: schoolId={}", schoolId);
+            Long schoolId = user.getSchoolId(); // <-- 토큰에 들어있는 학교 ID 사용
+            log.info("🔍 오늘의 식단 조회 API 호출 (User): schoolId={}", schoolId);
 
             // 서비스 호출 (이미지가 없으면 AI 생성 로직이 내부에서 동작함)
             MealPlanDetailResponse response = mealPlanService.getTodayMealPlan(schoolId);

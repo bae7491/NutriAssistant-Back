@@ -96,7 +96,8 @@ public class SecurityConfig {
                                 "/mealplan/**",
                                 "/api/menus/**",
                                 "/api/board/**",
-                                "/api/reviews/**"
+                                "/api/reviews/**",
+                                "/mealplan/**"
                         ).authenticated()
 
                         .anyRequest().authenticated()
