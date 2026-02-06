@@ -10,10 +10,11 @@ import com.nutriassistant.nutriassistant_back.domain.MealPlan.repository.MealPla
 import com.nutriassistant.nutriassistant_back.domain.MealPlan.repository.MenuHistoryRepository;
 import com.nutriassistant.nutriassistant_back.domain.NewMenu.entity.NewFoodInfo;
 import com.nutriassistant.nutriassistant_back.domain.NewMenu.repository.NewFoodInfoRepository;
+import com.nutriassistant.nutriassistant_back.domain.ai.service.ImageGenerationService;
 import com.nutriassistant.nutriassistant_back.domain.monthlyopsdoc.entity.MonthlyOpsDoc;
 import com.nutriassistant.nutriassistant_back.domain.monthlyopsdoc.service.MonthlyOpsDocService;
-// [추가] AI 이미지 생성 서비스 import
-import com.nutriassistant.nutriassistant_back.domain.ai.service.ImageGenerationService;
+// [추가] 리뷰 레포지토리 import
+import com.nutriassistant.nutriassistant_back.domain.review.repository.ReviewRepository;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -48,9 +49,10 @@ public class MealPlanService {
     private final FoodInfoRepository foodInfoRepository;
     private final NewFoodInfoRepository newFoodInfoRepository;
     private final MonthlyOpsDocService monthlyOpsDocService;
-
-    // [추가] AI 이미지 생성 서비스
     private final ImageGenerationService imageGenerationService;
+
+    // [추가] 리뷰 확인용 Repository
+    private final ReviewRepository reviewRepository;
 
     // --- 환경 변수 ---
     @Value("${fastapi.base-url:http://localhost:8001}")
@@ -68,7 +70,8 @@ public class MealPlanService {
                            ObjectMapper objectMapper,
                            FoodInfoRepository foodInfoRepository,
                            NewFoodInfoRepository newFoodInfoRepository,
-                           ImageGenerationService imageGenerationService // [추가]
+                           ImageGenerationService imageGenerationService,
+                           ReviewRepository reviewRepository // [추가]
     ) {
         this.mealPlanRepository = mealPlanRepository;
         this.mealPlanMenuRepository = mealPlanMenuRepository;
@@ -79,7 +82,8 @@ public class MealPlanService {
         this.objectMapper = objectMapper;
         this.foodInfoRepository = foodInfoRepository;
         this.newFoodInfoRepository = newFoodInfoRepository;
-        this.imageGenerationService = imageGenerationService; // [할당]
+        this.imageGenerationService = imageGenerationService;
+        this.reviewRepository = reviewRepository; // [할당]
     }
 
     @Transactional(readOnly = true)
@@ -93,10 +97,10 @@ public class MealPlanService {
     }
 
     // =========================================================================
-    // [신규] 메인 화면용: 오늘의 식단 조회 (이미지 자동 생성 포함)
+    // [수정] 메인 화면용: 오늘의 식단 조회 (이미지 생성 + 리뷰 여부 확인)
     // =========================================================================
     @Transactional
-    public MealPlanDetailResponse getTodayMealPlan(Long schoolId) {
+    public MealPlanDetailResponse getTodayMealPlan(Long schoolId, Long studentId) { // studentId 파라미터 추가
         LocalDate today = LocalDate.now();
 
         // 1. 오늘의 점심 식단 조회 (점심 기준)
@@ -130,13 +134,16 @@ public class MealPlanService {
             }
         }
 
-        // 4. 응답 DTO 변환
-        MealPlanDetailResponse response = toDetailResponse(menu);
+        // 4. [추가] 리뷰 작성 여부 확인
+        boolean isReviewed = false;
+        if (studentId != null) {
+            isReviewed = reviewRepository.existsByStudentIdAndDateAndMealType(
+                    studentId, menu.getMenuDate(), String.valueOf(menu.getMealType())
+            );
+        }
 
-        // 만약 DTO에 imageUrl 필드가 있다면 아래와 같이 추가 세팅 가능
-        // response.setImageUrl(mealPlan.getImageUrl());
-
-        return response;
+        // 5. 응답 DTO 변환 (리뷰 여부 전달)
+        return toDetailResponse(menu, isReviewed);
     }
 
     // [헬퍼] 메뉴 객체에서 음식 이름만 리스트로 추출
@@ -581,7 +588,17 @@ public class MealPlanService {
         return mealPlanMenuRepository.findByMealPlan_SchoolIdAndMenuDateAndMealType(schoolId, menuDate, mealType);
     }
 
+    // =========================================================================
+    // [수정] MealPlanDetailResponse 변환 (리뷰 여부 포함)
+    // =========================================================================
+
+    // 1. 기존 호환성 유지용 (리뷰 여부 false)
     public MealPlanDetailResponse toDetailResponse(MealPlanMenu menu) {
+        return toDetailResponse(menu, false);
+    }
+
+    // 2. 리뷰 여부 포함 버전
+    public MealPlanDetailResponse toDetailResponse(MealPlanMenu menu, boolean isReviewed) {
         MealPlanDetailResponse.MenuItem riceItem = parseDetailMenuItem(menu.getRiceDisplay());
         MealPlanDetailResponse.MenuItem soupItem = parseDetailMenuItem(menu.getSoupDisplay());
         MealPlanDetailResponse.MenuItem main1Item = parseDetailMenuItem(menu.getMain1Display());
@@ -617,6 +634,11 @@ public class MealPlanService {
                 .schoolId(menu.getMealPlan().getSchoolId())
                 .date(menu.getMenuDate())
                 .mealType(menu.getMealType().name())
+
+                // ▼▼▼ [추가] 이미지 URL 및 리뷰 여부 매핑 ▼▼▼
+                .imageUrl(menu.getMealPlan().getImageUrl())
+                .isReviewed(isReviewed)
+
                 .nutrition(nutrition)
                 .cost(menu.getCost())
                 .aiComment(menu.getAiComment())

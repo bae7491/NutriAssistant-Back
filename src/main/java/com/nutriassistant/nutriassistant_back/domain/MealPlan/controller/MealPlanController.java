@@ -24,6 +24,7 @@ import org.springframework.web.client.ResourceAccessException;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -42,20 +43,22 @@ public class MealPlanController {
     }
 
     // =========================================================================
-    // [수정됨] 오늘의 식단 조회 (토큰 인증 필수)
-    // URL: GET /mealplan/today (파라미터 없음)
+    // [수정됨] 오늘의 식단 조회 (List 반환: 조/중/석 모두 포함)
+    // URL: GET /mealplan/today
     // Header: Authorization: Bearer {Access_Token}
     // =========================================================================
     @GetMapping("/today")
-    public ResponseEntity<ApiResponse<MealPlanDetailResponse>> getTodayMealPlan(
-            @CurrentUser UserContext user // <-- [핵심 변경] 토큰에서 사용자 정보 추출
+    public ResponseEntity<ApiResponse<List<MealPlanDetailResponse>>> getTodayMealPlan(
+            @CurrentUser UserContext user // 토큰에서 사용자 정보 추출
     ) {
         try {
-            Long schoolId = user.getSchoolId(); // <-- 토큰에 들어있는 학교 ID 사용
-            log.info("🔍 오늘의 식단 조회 API 호출 (User): schoolId={}", schoolId);
+            Long schoolId = user.getSchoolId();
+            Long studentId = user.getId(); // 리뷰 작성 여부 확인을 위해 학생 ID 추출
 
-            // 서비스 호출 (이미지가 없으면 AI 생성 로직이 내부에서 동작함)
-            MealPlanDetailResponse response = mealPlanService.getTodayMealPlan(schoolId);
+            log.info("🔍 오늘의 식단 조회 API 호출 (User): schoolId={}, studentId={}", schoolId, studentId);
+
+            // 서비스 호출 (List 반환)
+            List<MealPlanDetailResponse> response = Collections.singletonList(mealPlanService.getTodayMealPlan(schoolId, studentId));
 
             return ResponseEntity.ok(
                     ApiResponse.success("오늘의 식단 조회 성공", response)

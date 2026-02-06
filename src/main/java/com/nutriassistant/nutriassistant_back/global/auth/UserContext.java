@@ -30,4 +30,9 @@ public class UserContext {
                 .role("GUEST")
                 .build();
     }
+
+    // [수정] userId를 반환하도록 구현
+    public Long getId() {
+        return this.userId;
+    }
 }
