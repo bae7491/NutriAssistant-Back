@@ -26,3 +26,14 @@ jwt:
 fastapi:
   base-url: http://${FAST_API_URL}:8001
   internal-token: ${FASTAPI_INTERNAL_TOKEN:}
+
+# AWS S3 설정
+cloud:
+  aws:
+    credentials:
+      access-key: ${AWS_ACCESS_KEY_ID}
+      secret-key: ${AWS_SECRET_ACCESS_KEY}
+    region:
+      static: ${AWS_REGION:ap-northeast-2}
+    s3:
+      bucket: ${AWS_S3_BUCKET}
