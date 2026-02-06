@@ -106,6 +106,7 @@ public class DietitianService {
         Dietitian dietitian = new Dietitian();
         dietitian.setUsername(username);
         dietitian.setName(request.getName());
+        dietitian.setEmail(request.getEmail());
         dietitian.setPhone(request.getPhone());
         dietitian.setPasswordHash(passwordEncoder.encode(request.getPw()));
 

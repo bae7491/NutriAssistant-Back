@@ -27,6 +27,7 @@ public class DietitianProfileResponse {
 
     private String username;  // 로그인 아이디
     private String name;      // 영양사 실명
+    private String email;
     private String phone;     // 전화번호
 
     @JsonProperty("created_at")
