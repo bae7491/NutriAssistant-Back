@@ -1,5 +1,8 @@
 package com.nutriassistant.nutriassistant_back.domain.review.entity;
 
+// [▼ 중요] 식단 도메인의 MealType Enum을 임포트해야 합니다.
+import com.nutriassistant.nutriassistant_back.domain.MealPlan.entity.MealType;
+
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
@@ -9,12 +12,12 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "reviews") // 테이블명 변경
+@Table(name = "reviews")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
-@EntityListeners(AuditingEntityListener.class) // 생성일 자동 주입
+@EntityListeners(AuditingEntityListener.class)
 public class Review {
 
     @Id
@@ -30,8 +33,11 @@ public class Review {
     @Column(nullable = false)
     private LocalDate date; // 식수 날짜
 
+    // [▼ 수정] String -> MealType으로 변경
+    // DB에는 "LUNCH", "DINNER" 문자열로 저장되도록 설정
+    @Enumerated(EnumType.STRING)
     @Column(name = "meal_type", nullable = false)
-    private String mealType; // LUNCH, DINNER
+    private MealType mealType;
 
     @Column(nullable = false)
     private Integer rating; // 별점 (1~5)
