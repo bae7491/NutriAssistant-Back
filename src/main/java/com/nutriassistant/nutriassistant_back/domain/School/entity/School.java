@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 @Entity
 @Getter
 @Builder
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor // [수정] protected 제거 -> public으로 변경 (다른 서비스에서 new School() 사용 가능하게 함)
 @AllArgsConstructor
 @Table(name = "school")
 public class School {
@@ -21,9 +21,8 @@ public class School {
     @Column(name = "school_id")
     private Long id;
 
-    // 영양사(Dietitian)와 1:1 관계
-    // (영양사 탈퇴 시 null 허용을 위해 nullable = true)
-    @Setter // ★ 영양사 매칭(registerSchool)을 위해 필요
+    // [중요] 영양사 탈퇴 시 null이 들어갈 수 있어야 하므로 nullable = true 필수!
+    @Setter
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "dietitian_id", nullable = true)
     private Dietitian dietitian;
@@ -36,11 +35,11 @@ public class School {
     @Column(nullable = false)
     private String schoolName;   // 학교명
 
-    @Setter // ★ 정보 업데이트(updateSchoolInfo)를 위해 필요
+    @Setter
     @Column(nullable = false, unique = true)
     private String schoolCode;   // 표준학교코드
 
-    @Setter // ★ 정보 업데이트를 위해 필요
+    @Setter
     @Column(nullable = false)
     private String regionCode;   // 시도교육청코드
 
