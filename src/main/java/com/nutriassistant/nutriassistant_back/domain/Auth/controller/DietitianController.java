@@ -69,10 +69,19 @@ public class DietitianController {
      * [관리자용 프로필 수정]
      * URL 경로에 명시된 ID의 영양사 정보를 수정합니다.
      */
-    @PutMapping("/{dietitianId}")
-    public ResponseEntity<DietitianProfileResponse> updateProfile(@PathVariable Long dietitianId,
-                                                                  @Valid @RequestBody DietitianUpdateRequest request) {
-        return ResponseEntity.ok(dietitianService.updateDietitianProfile(dietitianId, request));
+    @PutMapping("/me/password")
+    public ResponseEntity<Void> changeMyPassword(
+            @AuthenticationPrincipal UserDetails userDetails, // 토큰에서 사용자 정보 획득
+            @Valid @RequestBody PasswordChangeRequest request) {
+
+        // 1. 토큰(UserDetails)에서 이메일 추출 -> ID 찾기
+        String email = userDetails.getUsername();
+        Long currentDietitianId = dietitianService.findIdByEmail(email);
+
+        // 2. 서비스 호출 (ID를 스스로 찾아서 넘김)
+        dietitianService.changeDietitianPassword(currentDietitianId, request);
+
+        return ResponseEntity.noContent().build();
     }
 
     /*
