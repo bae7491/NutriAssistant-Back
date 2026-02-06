@@ -40,33 +40,43 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         // ====================================================
-                        // 1. [완전 공개] 로그인, 회원가입, 찾기 등 (구체적으로 명시해야 함!)
+                        // 1. [완전 공개] 로그인, 회원가입, 찾기 등 (토큰 없이 접근 가능)
                         // ====================================================
                         .requestMatchers(
                                 "/api/auth/login/**",          // 로그인
                                 "/api/auth/signup/**",         // 회원가입
-                                "/api/auth/find-id",           // 아이디 찾기
-                                "/api/auth/find-pw",           // 비번 찾기
+
+                                // ▼▼▼ [수정] 아이디/비번 찾기 경로 확장 (중요!) ▼▼▼
+                                "/api/auth/find-id/**",
+                                "/api/auth/find-pw/**",
+                                "/api/dietitian/find-id",      // 영양사 아이디 찾기 (만약 DietitianController에 있다면)
+                                "/api/dietitian/find-pw",      // 영양사 비번 찾기
+                                "/api/student/find-id",        // 학생 아이디 찾기 (만약 StudentController에 있다면)
+                                "/api/student/find-pw",        // 학생 비번 찾기
+
+                                "/api/dietitian/signup",       // 영양사 회원가입 (이것도 로그인 전이므로 허용해야 함)
+                                "/api/student/signup",         // 학생 회원가입
+
                                 "/api/public/**",              // 공용 API
                                 "/api/schools/search/**",      // 학교 검색
                                 "/internal/**",                // AI 서버 연동
                                 "/api/costs/internal/**"       // 단가 데이터 연동
-                        ).permitAll()  // ✅ 여기서는 withdraw, logout이 포함되지 않도록 주의!
+                        ).permitAll()
 
                         // ====================================================
-                        // 2. [인증 필수] 회원 탈퇴, 로그아웃, 비밀번호 변경
+                        // 2. [인증 필수] 회원 탈퇴, 로그아웃, 비밀번호 변경 (로그인 상태여야 함)
                         // ====================================================
                         .requestMatchers(
-                                "/api/auth/withdraw/**",       // 회원 탈퇴 (토큰 필수)
-                                "/api/auth/logout",            // 로그아웃 (토큰 필수)
-                                "/api/auth/password/**"        // 비밀번호 변경 (토큰 필수)
+                                "/api/auth/withdraw/**",
+                                "/api/auth/logout",
+                                "/api/auth/password/**"
                         ).authenticated()
 
                         // ====================================================
                         // 3. [영양사 전용]
                         // ====================================================
                         .requestMatchers(
-                                "/api/dietitian/**",
+                                "/api/dietitian/**",           // 주의: find-id가 여기 포함되면 막히므로 위에서 먼저 permitAll 해줘야 함
                                 "/api/schools/register",
                                 "/api/schools/my",
                                 "/mealplan/generate",
@@ -86,7 +96,7 @@ public class SecurityConfig {
                         // 4. [학생 전용]
                         // ====================================================
                         .requestMatchers(
-                                "/api/student/**"
+                                "/api/student/**"              // 주의: find-id가 여기 포함되면 막힘
                         ).hasRole("STUDENT")
 
                         // ====================================================
@@ -96,8 +106,7 @@ public class SecurityConfig {
                                 "/mealplan/**",
                                 "/api/menus/**",
                                 "/api/board/**",
-                                "/api/reviews/**",
-                                "/mealplan/**"
+                                "/api/reviews/**"
                         ).authenticated()
 
                         .anyRequest().authenticated()
