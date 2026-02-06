@@ -30,8 +30,7 @@ import java.util.UUID;
 
 @Slf4j
 @RestController
-// [수정] Postman 요청 URL(/api/v1/meal-plans)과 일치하도록 경로 변경
-@RequestMapping("/api/v1/meal-plans")
+@RequestMapping("/mealplan") // [복구 완료] 기존 경로로 변경
 public class MealPlanController {
 
     private final MealPlanService mealPlanService;
@@ -44,7 +43,7 @@ public class MealPlanController {
 
     // =========================================================================
     // [신규 추가] 오늘의 식단 조회 (메인 화면용)
-    // URL: GET /api/v1/meal-plans/today?schoolId=1
+    // URL: GET /mealplan/today?schoolId=1
     // =========================================================================
     @GetMapping("/today")
     public ResponseEntity<ApiResponse<MealPlanDetailResponse>> getTodayMealPlan(
@@ -63,7 +62,7 @@ public class MealPlanController {
         } catch (IllegalArgumentException e) {
             log.warn("⚠️ 오늘의 식단 없음: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-                    ApiResponse.error(e.getMessage()) // "오늘의 중식 식단이 존재하지 않습니다" 등
+                    ApiResponse.error(e.getMessage())
             );
         } catch (Exception e) {
             log.error("❌ 오늘의 식단 조회 중 오류 발생: ", e);
@@ -499,7 +498,6 @@ public class MealPlanController {
         String path = request.getRequestURI();
 
         try {
-            // studentId 파싱
             Long parsedStudentId;
             try {
                 parsedStudentId = Long.parseLong(studentId);
