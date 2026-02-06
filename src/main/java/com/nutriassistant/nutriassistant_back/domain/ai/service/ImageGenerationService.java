@@ -6,7 +6,7 @@ import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.GoogleCredentials;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.ClassPathResource; // [추가] 리소스 파일 읽기용
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -41,7 +41,7 @@ public class ImageGenerationService {
      */
     public String generateMealPlanImage(List<String> menuNames) throws IOException {
         String menuString = String.join(", ", menuNames);
-        // 프롬프트 튜닝: 한국 학교 급식 느낌을 살리기 위한 영문/한글 혼용 지시어
+        // 프롬프트 튜닝
         String prompt = "A high-quality, top-down food photography of a Korean school lunch tray containing: "
                 + menuString + ". Realistic, appetizing, bright lighting.";
         return generateImage(prompt);
@@ -52,11 +52,7 @@ public class ImageGenerationService {
      * @return Base64 Encoded Image String
      */
     public String generateImage(String prompt) throws IOException {
-        // =================================================================================
-        // 1. [수정됨] 인증 토큰 발급 (resources 폴더의 특정 JSON 파일 강제 로드)
-        // =================================================================================
-
-        // resources 폴더 안의 파일명과 정확히 일치해야 합니다.
+        // 1. 인증 토큰 발급 (resources 파일 로드 방식)
         ClassPathResource resource = new ClassPathResource("food-r-419209-0c382bb35fd3.json");
 
         GoogleCredentials credentials = GoogleCredentials.fromStream(resource.getInputStream())
@@ -76,9 +72,10 @@ public class ImageGenerationService {
 
         Map<String, Object> parameters = new HashMap<>();
         parameters.put("sampleCount", 1);
-        // 이미지 비율 (1:1), 포맷 등 설정 가능
         parameters.put("aspectRatio", "1:1");
-        parameters.put("storageUri", ""); // 바로 Base64로 받기 위해 비워둠
+
+        // [삭제됨] parameters.put("storageUri", "");
+        // -> 이 줄을 지웠으므로 이제 에러 없이 Base64 코드로 응답이 옵니다.
 
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("instances", List.of(instance));
@@ -88,7 +85,7 @@ public class ImageGenerationService {
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
         ResponseEntity<String> response = restTemplate.exchange(API_URL, HttpMethod.POST, entity, String.class);
 
-        // 5. 응답 파싱 (JSON -> Base64 String 추출)
+        // 5. 응답 파싱
         return extractBase64FromJson(response.getBody());
     }
 
@@ -97,7 +94,6 @@ public class ImageGenerationService {
      */
     private String extractBase64FromJson(String jsonResponse) throws IOException {
         JsonNode rootNode = objectMapper.readTree(jsonResponse);
-        // 구조: { "predictions": [ { "bytesBase64Encoded": "..." } ] }
         JsonNode predictions = rootNode.path("predictions");
         if (predictions.isArray() && !predictions.isEmpty()) {
             return predictions.get(0).path("bytesBase64Encoded").asText();
