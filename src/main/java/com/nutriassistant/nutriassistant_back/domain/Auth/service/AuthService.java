@@ -9,6 +9,7 @@ import com.nutriassistant.nutriassistant_back.domain.Auth.repository.StudentRepo
 import com.nutriassistant.nutriassistant_back.domain.School.dto.SchoolRequest;
 import com.nutriassistant.nutriassistant_back.domain.School.entity.School;
 import com.nutriassistant.nutriassistant_back.domain.School.repository.SchoolRepository;
+import com.nutriassistant.nutriassistant_back.global.enums.UserStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import com.nutriassistant.nutriassistant_back.global.jwt.JwtProvider;
@@ -152,9 +153,9 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "비밀번호가 일치하지 않습니다.");
         }
 
-        // [중요] 탈퇴한 학생인지 확인 (로그인 차단)
-        if (student.getWithdrawalDate() != null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "탈퇴한 회원입니다. 복구하려면 관리자에게 문의하세요.");
+        // [개선] 상태값과 날짜 중 하나라도 탈퇴 징후가 있으면 차단
+        if (student.getStatus() != UserStatus.ACTIVE || student.getWithdrawalDate() != null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "탈퇴하거나 이용이 제한된 계정입니다. 복구는 관리자에게 문의하세요.");
         }
 
         return jwtProvider.createToken(
@@ -177,9 +178,9 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "비밀번호가 일치하지 않습니다.");
         }
 
-        // [중요] 탈퇴한 영양사인지 확인 (로그인 차단)
-        if (dietitian.getWithdrawalDate() != null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "탈퇴한 회원입니다. 복구하려면 관리자에게 문의하세요.");
+        // [개선] 상태값과 날짜 중 하나라도 탈퇴 징후가 있으면 차단
+        if (dietitian.getStatus() != UserStatus.ACTIVE || dietitian.getWithdrawalDate() != null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "탈퇴하거나 이용이 제한된 계정입니다. 복구는 관리자에게 문의하세요.");
         }
 
         School school = schoolRepository.findByDietitian_Id(dietitian.getId()).orElse(null);
