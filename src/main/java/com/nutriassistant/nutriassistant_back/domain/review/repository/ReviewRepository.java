@@ -1,6 +1,9 @@
 package com.nutriassistant.nutriassistant_back.domain.review.repository;
 
 import com.nutriassistant.nutriassistant_back.domain.review.entity.Review;
+// [중요] 식단 도메인의 MealType Enum을 꼭 import 해야 합니다!
+import com.nutriassistant.nutriassistant_back.domain.MealPlan.entity.MealType;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -24,11 +27,8 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     Page<Review> findBySchoolId(Long schoolId, Pageable pageable);
 
     // =================================================================
-    // 5. [신규 추가] 중복 리뷰 방지용 존재 여부 확인
-    // 학생 ID + 날짜 + 식사유형(중식 등)이 일치하는 리뷰가 있는지 검사 (true면 이미 쓴 것)
+    // 5. [수정됨] 중복 리뷰 방지용 존재 여부 확인
+    // 중요: 파라미터 타입을 String -> MealType으로 변경했습니다.
     // =================================================================
-    boolean existsByStudentIdAndDateAndMealType(Long studentId, LocalDate date, String mealType);
-
-    // 만약 MealType이 Enum이 아니라 String이라면 아래처럼 쓰세요:
-    // boolean existsByStudentIdAndDateAndMealType(Long studentId, LocalDate date, String mealType);
+    boolean existsByStudentIdAndDateAndMealType(Long studentId, LocalDate date, MealType mealType);
 }

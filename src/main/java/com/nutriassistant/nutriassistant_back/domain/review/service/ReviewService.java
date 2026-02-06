@@ -25,7 +25,7 @@ public class ReviewService {
         boolean alreadyReviewed = reviewRepository.existsByStudentIdAndDateAndMealType(
                 studentId,
                 request.getDate(),
-                request.getMeal_type()
+                MealType.valueOf(request.getMeal_type())
         );
 
         if (alreadyReviewed) {

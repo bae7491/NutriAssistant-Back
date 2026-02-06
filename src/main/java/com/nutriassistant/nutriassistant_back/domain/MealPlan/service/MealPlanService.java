@@ -138,7 +138,7 @@ public class MealPlanService {
         boolean isReviewed = false;
         if (studentId != null) {
             isReviewed = reviewRepository.existsByStudentIdAndDateAndMealType(
-                    studentId, menu.getMenuDate(), String.valueOf(menu.getMealType())
+                    studentId, menu.getMenuDate(), MealType.valueOf(String.valueOf(menu.getMealType()))
             );
         }
 
