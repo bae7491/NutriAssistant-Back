@@ -39,7 +39,6 @@ public class DietitianController {
     /*
      * [내 정보 조회 API]
      * URL: GET /api/dietitian/me
-     * 토큰(UserDetails)에서 이메일을 추출하여 현재 로그인한 영양사의 프로필을 조회합니다.
      */
     @GetMapping("/me")
     public ResponseEntity<DietitianProfileResponse> getMyProfile(@AuthenticationPrincipal UserDetails userDetails) {
@@ -52,7 +51,6 @@ public class DietitianController {
     /*
      * [내 정보 수정 API]
      * URL: PATCH /api/dietitian/me
-     * 토큰 기반으로 본인의 정보를 수정합니다.
      */
     @PatchMapping("/me")
     public ResponseEntity<DietitianProfileResponse> updateMyProfile(
@@ -66,36 +64,31 @@ public class DietitianController {
     }
 
     /*
-     * [관리자용 프로필 수정]
-     * URL 경로에 명시된 ID의 영양사 정보를 수정합니다.
+     * [내 비밀번호 변경 API] - (수정됨: 안전한 토큰 방식)
+     * URL: PUT /api/dietitian/me/password
+     * 토큰에서 ID를 추출하므로 URL에 ID를 노출하지 않습니다.
      */
     @PutMapping("/me/password")
     public ResponseEntity<Void> changeMyPassword(
-            @AuthenticationPrincipal UserDetails userDetails, // 토큰에서 사용자 정보 획득
+            @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody PasswordChangeRequest request) {
 
-        // 1. 토큰(UserDetails)에서 이메일 추출 -> ID 찾기
+        // 1. 토큰에서 이메일 추출 -> ID 찾기
         String email = userDetails.getUsername();
         Long currentDietitianId = dietitianService.findIdByEmail(email);
 
-        // 2. 서비스 호출 (ID를 스스로 찾아서 넘김)
+        // 2. 서비스 호출
         dietitianService.changeDietitianPassword(currentDietitianId, request);
 
         return ResponseEntity.noContent().build();
     }
 
-    /*
-     * [비밀번호 변경 API]
-     */
-    @PutMapping("/{dietitianId}/password")
-    public ResponseEntity<Void> changePassword(@PathVariable Long dietitianId,
-                                               @Valid @RequestBody PasswordChangeRequest request) {
-        dietitianService.changeDietitianPassword(dietitianId, request);
-        return ResponseEntity.noContent().build();
-    }
+    // ⚠️ 삭제됨: 중복된 옛날 changePassword 메서드는 지웠습니다.
 
     /*
      * [학교 정보 수정 API]
+     * URL: PUT /api/dietitian/{dietitianId}/school
+     * (참고: 이 부분도 나중에 /me/school 로 바꾸시면 더 안전합니다. 일단은 유지했습니다.)
      */
     @PutMapping("/{dietitianId}/school")
     public ResponseEntity<SchoolResponse> upsertSchool(@PathVariable Long dietitianId,
