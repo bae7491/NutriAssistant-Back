@@ -1,9 +1,9 @@
-package com.nutriassistant.nutriassistant_back.domain.Auth.DTO; // 패키지명 소문자 권장 (Auth -> auth, DTO -> dto)
+package com.nutriassistant.nutriassistant_back.domain.Auth.DTO;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.nutriassistant.nutriassistant_back.domain.Auth.entity.Dietitian; // 영양사 엔티티 경로 확인 필요
-import com.nutriassistant.nutriassistant_back.domain.School.entity.School; // 학교 엔티티 경로 확인 필요
-import com.nutriassistant.nutriassistant_back.domain.School.dto.SchoolResponse; // 이전에 수정한 SchoolResponse 경로
+import com.nutriassistant.nutriassistant_back.domain.Auth.entity.Dietitian;
+import com.nutriassistant.nutriassistant_back.domain.School.entity.School;
+import com.nutriassistant.nutriassistant_back.domain.School.dto.SchoolResponse;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -17,9 +17,9 @@ import java.time.LocalDateTime;
  * - 영양사 개인 정보와 소속된 학교 정보를 포함합니다.
  */
 @Getter
-@Builder // 빌더 패턴 사용 가능 (Controller 등에서 유용)
-@NoArgsConstructor // 기본 생성자 (JSON 파싱 및 JPA 호환용)
-@AllArgsConstructor // 전체 인자 생성자 (Builder 패턴용)
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class DietitianProfileResponse {
 
     @JsonProperty("dietitian_id")
@@ -27,7 +27,7 @@ public class DietitianProfileResponse {
 
     private String username;  // 로그인 아이디
     private String name;      // 영양사 실명
-    private String email;
+    private String email;     // 이메일
     private String phone;     // 전화번호
 
     @JsonProperty("created_at")
@@ -52,6 +52,10 @@ public class DietitianProfileResponse {
         this.dietitianId = dietitian.getId();
         this.username = dietitian.getUsername();
         this.name = dietitian.getName();
+
+        // [수정 완료] 이메일 매핑 코드 추가
+        this.email = dietitian.getEmail();
+
         this.phone = dietitian.getPhone();
         this.createdAt = dietitian.getCreatedAt();
         this.updatedAt = dietitian.getUpdatedAt();
