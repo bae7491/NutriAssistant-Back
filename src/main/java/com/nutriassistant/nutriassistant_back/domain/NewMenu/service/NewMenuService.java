@@ -412,6 +412,7 @@ public class NewMenuService {
         String sortField = switch (sort != null ? sort.toLowerCase() : "id") {
             case "name" -> "foodName";
             case "kcal" -> "kcal";
+            case "created_at" -> "createdAt";
             default -> "id";
         };
 
