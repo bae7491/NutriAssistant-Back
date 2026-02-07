@@ -26,6 +26,9 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     // 4. [기존] 페이징 조회
     Page<Review> findBySchoolId(Long schoolId, Pageable pageable);
 
+    // 5-1. 날짜 범위 필터 페이징 조회
+    Page<Review> findBySchoolIdAndDateBetween(Long schoolId, LocalDate start, LocalDate end, Pageable pageable);
+
     // =================================================================
     // 5. [수정됨] 중복 리뷰 방지용 존재 여부 확인
     // 중요: 파라미터 타입을 String -> MealType으로 변경했습니다.

@@ -343,8 +343,13 @@ public class MetricsService {
         // 1. Pageable 객체 생성 (0부터 시작하므로 page-1)
         Pageable pageable = PageRequest.of(Math.max(0, page - 1), size, Sort.by("createdAt").descending());
 
-        // 2. DB 조회 (ReviewRepository에 findBySchoolId 메서드가 있어야 함)
-        Page<Review> reviewPage = reviewRepository.findBySchoolId(schoolId, pageable);
+        // 2. DB 조회 - 날짜 필터 적용
+        Page<Review> reviewPage;
+        if (start != null && end != null) {
+            reviewPage = reviewRepository.findBySchoolIdAndDateBetween(schoolId, start, end, pageable);
+        } else {
+            reviewPage = reviewRepository.findBySchoolId(schoolId, pageable);
+        }
 
         // 3. DTO 매핑
         List<SatisfactionDto.ReviewDetail> details = reviewPage.getContent().stream()
@@ -352,8 +357,8 @@ public class MetricsService {
                         .review_id("R-" + r.getId())
                         .batch_id(batchId != null ? batchId : "batch-latest")
                         .school_id(r.getSchoolId())
-                        .meal_type("LUNCH")
-                        .date(r.getCreatedAt().toLocalDate())
+                        .meal_type(r.getMealType() != null ? r.getMealType().name() : "LUNCH")
+                        .date(r.getDate() != null ? r.getDate() : r.getCreatedAt().toLocalDate())
                         .rating_5(r.getRating() != null ? r.getRating().doubleValue() : 0.0)
 
                         // 현재 Review 엔티티에 감성분석 결과 컬럼이 없으므로, 기본값 또는 추후 조인 필요
