@@ -366,6 +366,20 @@ public class AuthService {
     }
 
     // =========================================================================
+    // 10. 이메일 중복체크
+    // =========================================================================
+
+    @Transactional(readOnly = true)
+    public boolean checkStudentEmailAvailable(String email) {
+        return studentRepository.findByUsername(email).isEmpty();
+    }
+
+    @Transactional(readOnly = true)
+    public boolean checkDietitianEmailAvailable(String email) {
+        return !dietitianRepository.existsByEmail(email);
+    }
+
+    // =========================================================================
     // 유틸리티
     // =========================================================================
     private String toAllergyCsv(List<Integer> codes) {

@@ -61,6 +61,9 @@ public class SecurityConfig {
                                 "/api/auth/student/find-pw",
                                 "/api/auth/student/find-password",   // [추가] 이것도 추가
 
+                                "/api/auth/student/check-email",     // 학생 이메일 중복체크
+                                "/api/auth/dietitian/check-email",   // 영양사 이메일 중복체크
+
                                 "/api/auth/dietitian/signup",
                                 "/api/auth/student/signup",
 

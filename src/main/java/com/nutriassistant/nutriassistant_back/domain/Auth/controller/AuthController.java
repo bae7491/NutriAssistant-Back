@@ -66,6 +66,24 @@ public class AuthController {
     }
 
     // =========================================================================
+    // 이메일 중복체크
+    // =========================================================================
+
+    @GetMapping("/student/check-email")
+    public ResponseEntity<Map<String, Boolean>> checkStudentEmail(
+            @RequestParam String email) {
+        boolean available = authService.checkStudentEmailAvailable(email);
+        return ResponseEntity.ok(Map.of("available", available));
+    }
+
+    @GetMapping("/dietitian/check-email")
+    public ResponseEntity<Map<String, Boolean>> checkDietitianEmail(
+            @RequestParam String email) {
+        boolean available = authService.checkDietitianEmailAvailable(email);
+        return ResponseEntity.ok(Map.of("available", available));
+    }
+
+    // =========================================================================
     // 3. 학생 (Student) 회원가입 / 로그인
     // =========================================================================
     @PostMapping("/signup/student")
