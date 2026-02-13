@@ -482,8 +482,21 @@ public class MealPlanService {
                 .comparing(MealPlanMenu::getMenuDate)
                 .thenComparing(m -> m.getMealType().ordinal()));
 
+        // 해당 월의 히스토리를 한번에 조회하여 action_type 매핑
+        String startDate = mealPlan.getYear() + "-" + String.format("%02d", mealPlan.getMonth()) + "-01";
+        String endDate = mealPlan.getYear() + "-" + String.format("%02d", mealPlan.getMonth()) + "-31";
+        List<MenuHistory> histories = menuHistoryRepository.findBySchoolIdAndMealDateBetweenOrderByIdDesc(
+                mealPlan.getSchoolId(), startDate, endDate);
+
+        // date_mealType → 최신 actionType 매핑 (ID 내림차순이므로 첫 번째가 최신)
+        Map<String, String> actionTypeMap = new LinkedHashMap<>();
+        for (MenuHistory h : histories) {
+            String key = h.getMealDate() + "_" + h.getMealType();
+            actionTypeMap.putIfAbsent(key, h.getActionType().name());
+        }
+
         List<MealPlanMonthlyResponse.MenuDetail> menuDetails = menus.stream()
-                .map(this::toMenuDetail)
+                .map(m -> toMenuDetail(m, actionTypeMap))
                 .collect(Collectors.toList());
 
         return MealPlanMonthlyResponse.builder()
@@ -497,7 +510,7 @@ public class MealPlanService {
                 .build();
     }
 
-    private MealPlanMonthlyResponse.MenuDetail toMenuDetail(MealPlanMenu menu) {
+    private MealPlanMonthlyResponse.MenuDetail toMenuDetail(MealPlanMenu menu, Map<String, String> actionTypeMap) {
         MealPlanMonthlyResponse.MenuItem riceItem = parseMonthlyMenuItem(menu.getRiceDisplay());
         MealPlanMonthlyResponse.MenuItem soupItem = parseMonthlyMenuItem(menu.getSoupDisplay());
         MealPlanMonthlyResponse.MenuItem main1Item = parseMonthlyMenuItem(menu.getMain1Display());
@@ -527,6 +540,8 @@ public class MealPlanService {
                 riceItem, soupItem, main1Item, main2Item, sideItem, kimchiItem, dessertItem
         );
 
+        String actionType = actionTypeMap.get(menu.getMenuDate().toString() + "_" + menu.getMealType().name());
+
         return MealPlanMonthlyResponse.MenuDetail.builder()
                 .menuId(menu.getId())
                 .date(menu.getMenuDate())
@@ -536,6 +551,7 @@ public class MealPlanService {
                 .aiComment(menu.getAiComment())
                 .menuItems(menuItems)
                 .allergenSummary(allergenSummary)
+                .actionType(actionType)
                 .build();
     }
 
@@ -972,8 +988,34 @@ public class MealPlanService {
                 if (food.getProtein() != null) totalProt = totalProt.add(food.getProtein());
                 if (food.getFat() != null) totalFat = totalFat.add(food.getFat());
             } else {
-                displayMenus.add(pureName);
-                byMenu.put(pureName, new ArrayList<>());
+                // FoodInfo에 없으면 NewFoodInfo(신메뉴)에서 조회
+                Optional<NewFoodInfo> newFoodOpt = newFoodInfoRepository.findByFoodNameAndDeletedFalse(pureName);
+                if (newFoodOpt.isPresent()) {
+                    NewFoodInfo newFood = newFoodOpt.get();
+
+                    List<Integer> allergens = new ArrayList<>();
+                    String allergyDisplay = "";
+                    if (newFood.getAllergyInfo() != null && !newFood.getAllergyInfo().isEmpty()) {
+                        allergyDisplay = "(" + newFood.getAllergyInfo() + ")";
+                        for (String s : newFood.getAllergyInfo().split(",")) {
+                            try {
+                                allergens.add(Integer.parseInt(s.trim()));
+                            } catch (NumberFormatException ignored) {}
+                        }
+                    }
+
+                    displayMenus.add(pureName + allergyDisplay);
+                    byMenu.put(pureName, allergens);
+                    uniqueAllergens.addAll(allergens);
+
+                    if (newFood.getKcal() != null) totalKcal = totalKcal.add(BigDecimal.valueOf(newFood.getKcal()));
+                    if (newFood.getCarbs() != null) totalCarb = totalCarb.add(newFood.getCarbs());
+                    if (newFood.getProtein() != null) totalProt = totalProt.add(newFood.getProtein());
+                    if (newFood.getFat() != null) totalFat = totalFat.add(newFood.getFat());
+                } else {
+                    displayMenus.add(pureName);
+                    byMenu.put(pureName, new ArrayList<>());
+                }
             }
         }
 
@@ -1043,11 +1085,22 @@ public class MealPlanService {
 
         String pureName = menuName.replaceAll("\\s*\\([^)]*\\)", "").trim();
 
+        // FoodInfo에서 조회
         Optional<FoodInfo> foodOpt = foodInfoRepository.findByFoodNameIgnoreSpace(pureName);
         if (foodOpt.isPresent()) {
             FoodInfo food = foodOpt.get();
             if (food.getAllergyInfo() != null && !food.getAllergyInfo().isEmpty()) {
                 return pureName + " (" + food.getAllergyInfo() + ")";
+            }
+            return pureName;
+        }
+
+        // FoodInfo에 없으면 NewFoodInfo(신메뉴)에서 조회
+        Optional<NewFoodInfo> newFoodOpt = newFoodInfoRepository.findByFoodNameAndDeletedFalse(pureName);
+        if (newFoodOpt.isPresent()) {
+            NewFoodInfo newFood = newFoodOpt.get();
+            if (newFood.getAllergyInfo() != null && !newFood.getAllergyInfo().isEmpty()) {
+                return pureName + " (" + newFood.getAllergyInfo() + ")";
             }
         }
 

@@ -2,11 +2,15 @@ package com.nutriassistant.nutriassistant_back.domain.MealPlan.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nutriassistant.nutriassistant_back.domain.MealPlan.entity.FoodInfo;
 import com.nutriassistant.nutriassistant_back.domain.MealPlan.entity.MealPlan;
 import com.nutriassistant.nutriassistant_back.domain.MealPlan.entity.MealPlanMenu;
 import com.nutriassistant.nutriassistant_back.domain.MealPlan.entity.MealType;
+import com.nutriassistant.nutriassistant_back.domain.MealPlan.repository.FoodInfoRepository;
 import com.nutriassistant.nutriassistant_back.domain.MealPlan.repository.MealPlanMenuRepository;
 import com.nutriassistant.nutriassistant_back.domain.MealPlan.repository.MealPlanRepository;
+import com.nutriassistant.nutriassistant_back.domain.NewMenu.entity.NewFoodInfo;
+import com.nutriassistant.nutriassistant_back.domain.NewMenu.repository.NewFoodInfoRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,19 +18,26 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class MealPlanMenuService {
 
     private final MealPlanMenuRepository mealPlanMenuRepository;
     private final MealPlanRepository mealPlanRepository;
+    private final FoodInfoRepository foodInfoRepository;
+    private final NewFoodInfoRepository newFoodInfoRepository;
     private final ObjectMapper objectMapper;
 
     public MealPlanMenuService(MealPlanMenuRepository mealPlanMenuRepository,
                                MealPlanRepository mealPlanRepository,
+                               FoodInfoRepository foodInfoRepository,
+                               NewFoodInfoRepository newFoodInfoRepository,
                                ObjectMapper objectMapper) {
         this.mealPlanMenuRepository = mealPlanMenuRepository;
         this.mealPlanRepository = mealPlanRepository;
+        this.foodInfoRepository = foodInfoRepository;
+        this.newFoodInfoRepository = newFoodInfoRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -97,13 +108,13 @@ public class MealPlanMenuService {
             menu.setMenuDate(date);
             menu.setMealType(mealType);
 
-            menu.setRiceDisplay(m.path("Rice").isNull() ? null : m.path("Rice").asText(null));
-            menu.setSoupDisplay(m.path("Soup").isNull() ? null : m.path("Soup").asText(null));
-            menu.setMain1Display(m.path("Main1").isNull() ? null : m.path("Main1").asText(null));
-            menu.setMain2Display(m.path("Main2").isNull() ? null : m.path("Main2").asText(null));
-            menu.setSideDisplay(m.path("Side").isNull() ? null : m.path("Side").asText(null));
-            menu.setKimchiDisplay(m.path("Kimchi").isNull() ? null : m.path("Kimchi").asText(null));
-            menu.setDessertDisplay(m.path("Dessert").isNull() ? null : m.path("Dessert").asText(null));
+            menu.setRiceDisplay(enrichWithAllergen(m.path("Rice").isNull() ? null : m.path("Rice").asText(null)));
+            menu.setSoupDisplay(enrichWithAllergen(m.path("Soup").isNull() ? null : m.path("Soup").asText(null)));
+            menu.setMain1Display(enrichWithAllergen(m.path("Main1").isNull() ? null : m.path("Main1").asText(null)));
+            menu.setMain2Display(enrichWithAllergen(m.path("Main2").isNull() ? null : m.path("Main2").asText(null)));
+            menu.setSideDisplay(enrichWithAllergen(m.path("Side").isNull() ? null : m.path("Side").asText(null)));
+            menu.setKimchiDisplay(enrichWithAllergen(m.path("Kimchi").isNull() ? null : m.path("Kimchi").asText(null)));
+            menu.setDessertDisplay(enrichWithAllergen(m.path("Dessert").isNull() ? null : m.path("Dessert").asText(null)));
 
             if (m.hasNonNull("Kcal")) menu.setKcal(BigDecimal.valueOf(Math.round(m.get("Kcal").asDouble())));
             if (m.hasNonNull("Carb")) menu.setCarb(BigDecimal.valueOf(Math.round(m.get("Carb").asDouble())));
@@ -117,5 +128,39 @@ public class MealPlanMenuService {
 
             mealPlanMenuRepository.save(menu);
         }
+    }
+
+    private String enrichWithAllergen(String menuName) {
+        if (menuName == null || menuName.isBlank()) {
+            return null;
+        }
+
+        // 이미 알레르기 정보가 있으면 그대로 반환
+        if (menuName.matches(".*\\([\\d,\\s]+\\)$")) {
+            return menuName;
+        }
+
+        String pureName = menuName.replaceAll("\\s*\\([^)]*\\)", "").trim();
+
+        // FoodInfo에서 조회
+        Optional<FoodInfo> foodOpt = foodInfoRepository.findByFoodNameIgnoreSpace(pureName);
+        if (foodOpt.isPresent()) {
+            FoodInfo food = foodOpt.get();
+            if (food.getAllergyInfo() != null && !food.getAllergyInfo().isEmpty()) {
+                return pureName + "(" + food.getAllergyInfo() + ")";
+            }
+            return pureName;
+        }
+
+        // FoodInfo에 없으면 NewFoodInfo(신메뉴)에서 조회
+        Optional<NewFoodInfo> newFoodOpt = newFoodInfoRepository.findByFoodNameAndDeletedFalse(pureName);
+        if (newFoodOpt.isPresent()) {
+            NewFoodInfo newFood = newFoodOpt.get();
+            if (newFood.getAllergyInfo() != null && !newFood.getAllergyInfo().isEmpty()) {
+                return pureName + "(" + newFood.getAllergyInfo() + ")";
+            }
+        }
+
+        return pureName;
     }
 }

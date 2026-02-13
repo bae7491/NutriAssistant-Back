@@ -55,6 +55,9 @@ public class MealPlanMonthlyResponse {
 
         @JsonProperty("allergen_summary")
         private AllergenSummary allergenSummary;
+
+        @JsonProperty("action_type")
+        private String actionType;
     }
 
     @Getter
